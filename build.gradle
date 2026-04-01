@@ -6,7 +6,7 @@ plugins {
 
 group = 'com.example'
 version = '0.0.1-SNAPSHOT'
-description = 'dailymenu'
+description = 'Demo project for Spring Boot'
 
 java {
 	toolchain {
@@ -26,17 +26,45 @@ repositories {
 
 dependencies {
 	implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
-	implementation 'org.springframework.boot:spring-boot-starter-data-redis'
 	implementation 'org.springframework.boot:spring-boot-starter-validation'
-	implementation 'org.springframework.boot:spring-boot-starter-webmvc'
+	implementation 'org.springframework.boot:spring-boot-starter-web'
 	compileOnly 'org.projectlombok:lombok'
-	runtimeOnly 'com.mysql:mysql-connector-j'
+	developmentOnly 'org.springframework.boot:spring-boot-devtools'
+	runtimeOnly 'com.h2database:h2'
+	runtimeOnly 'com.mysql:mysql-connector-j' //MYSQL JDBC 드라이버
+	implementation 'org.springframework.boot:spring-boot-starter-data-redis' // Spring Data Redis
+	implementation 'org.springframework.kafka:spring-kafka' // Kafka
 	annotationProcessor 'org.projectlombok:lombok'
-	testImplementation 'org.springframework.boot:spring-boot-starter-data-jpa-test'
-	testImplementation 'org.springframework.boot:spring-boot-starter-data-redis-test'
-	testImplementation 'org.springframework.boot:spring-boot-starter-validation-test'
-	testImplementation 'org.springframework.boot:spring-boot-starter-webmvc-test'
+	// Spring MVC 테스트용 의존성
+	testImplementation 'org.springframework.boot:spring-boot-starter-test'
+	// Cucumber BDD 테스트 의존성
+	testImplementation 'io.cucumber:cucumber-java:7.18.1'
+	testImplementation 'io.cucumber:cucumber-spring:7.18.1'
+	testImplementation 'io.cucumber:cucumber-junit-platform-engine:7.18.1'
+	// Junit Platform Suite 사용을 위한 의존성
+	testImplementation 'org.junit.platform:junit-platform-suite:1.10.2'
 	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+	//Testcontainers BOM 추가
+	testImplementation platform('org.testcontainers:testcontainers-bom:1.20.4') // 변경된 부분
+	//Testcontainers JUnit5 지원
+	testImplementation 'org.testcontainers:junit-jupiter' // 변경된 부분
+	//MySQL 컨테이너
+	testImplementation 'org.testcontainers:mysql' // 변경된 부분
+	//Kafka 컨테이너
+	testImplementation 'org.testcontainers:kafka' // 변경된 부분
+	//Redis용 GenericContainer 사용을 위한 core
+	testImplementation 'org.testcontainers:testcontainers' // 변경된 부분
+	testImplementation 'org.springframework.boot:spring-boot-webmvc-test'
+	testImplementation 'org.springframework.boot:spring-boot-starter-test'
+
+}
+
+tasks.withType(JavaCompile).configureEach {
+	options.encoding = 'UTF-8' // 변경된 부분: 자바 소스 인코딩 설정
+}
+
+tasks.withType(Test).configureEach {
+	systemProperty 'file.encoding', 'UTF-8' // 변경된 부분: 테스트 실행 인코딩 설정
 }
 
 tasks.named('test') {

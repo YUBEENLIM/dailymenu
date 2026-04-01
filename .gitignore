@@ -1,4 +1,4 @@
-HELP.md
+# Gradle
 .gradle
 build/
 !gradle/wrapper/gradle-wrapper.jar
@@ -26,6 +26,18 @@ out/
 !**/src/main/**/out/
 !**/src/test/**/out/
 
+# OS
+.DS_Store
+Thumbs.db
+
+# logs
+*.log
+
+# docker volumes
+mysql-data
+redis-data
+kafka-data
+
 ### NetBeans ###
 /nbproject/private/
 /nbbuild/
@@ -35,3 +47,9 @@ out/
 
 ### VS Code ###
 .vscode/
+
+# 환경 설정 (API 키, DB 비밀번호 등 민감 정보)
+application-local.yml
+application-local.yaml
+application-secret.yml
+.env

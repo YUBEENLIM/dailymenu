@@ -10,7 +10,6 @@ import com.example.dailymenu.application.facade.RecommendationFacade;
 import com.example.dailymenu.application.usecase.command.RecommendationCommand;
 import com.example.dailymenu.application.usecase.result.RecommendationResult;
 import com.example.dailymenu.application.usecase.result.StatusUpdateResult;
-import com.example.dailymenu.domain.recommendation.vo.RejectReason;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -72,8 +71,7 @@ public class RecommendationController {
             @PathVariable Long id,
             @RequestBody @Valid RejectHttpRequest request
     ) {
-        RejectReason reason = RejectReason.valueOf(request.reason());
-        StatusUpdateResult result = facade.reject(id, reason);
+        StatusUpdateResult result = facade.reject(id, request.reason());
         RejectResponse response = new RejectResponse(
                 result.recommendationId(), result.status().name());
 

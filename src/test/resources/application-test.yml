@@ -1,14 +1,20 @@
 spring:
   docker:
     compose:
-      enabled: false # 변경된 부분: 테스트에서 docker-compose 자동 실행 방지
+      enabled: false
 
   jpa:
     hibernate:
-      ddl-auto: none
+      ddl-auto: create-drop # 변경: 테스트 시 JPA Entity 기반 스키마 자동 생성/삭제
     properties:
       hibernate:
         format_sql: true
+
+# JWT — 테스트용 시크릿 (운영 환경과 분리)
+jwt:
+  secret: dGVzdC1qd3Qtc2VjcmV0LWtleS1mb3ItaW50ZWdyYXRpb24tdGVzdGluZy1vbmx5
+  access-token-expiration: 3600
+  refresh-token-expiration: 604800
 
 logging:
   level:

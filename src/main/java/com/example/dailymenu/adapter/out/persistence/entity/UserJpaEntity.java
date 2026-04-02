@@ -3,6 +3,7 @@ package com.example.dailymenu.adapter.out.persistence.entity;
 import com.example.dailymenu.domain.user.vo.UserStatus;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
+import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import org.hibernate.annotations.CreationTimestamp;
@@ -63,6 +64,21 @@ public class UserJpaEntity {
     // 소프트 딜리트 — null: 활성, 값 있음: 탈퇴
     @Column(name = "deleted_at")
     private LocalDateTime deletedAt;
+
+    @Builder
+    private UserJpaEntity(String email, String nickname, UserStatus status, String passwordHash,
+                          String oauthProvider, String oauthId) {
+        this.email = email;
+        this.nickname = nickname;
+        this.status = status;
+        this.passwordHash = passwordHash;
+        this.oauthProvider = oauthProvider;
+        this.oauthId = oauthId;
+    }
+
+    public void updateLastLogin() {
+        this.lastLoginAt = LocalDateTime.now();
+    }
 
     // 1:1 — UserProfile 조회 시 반드시 Fetch Join 사용
     @OneToOne(mappedBy = "user", fetch = FetchType.LAZY, cascade = CascadeType.ALL)

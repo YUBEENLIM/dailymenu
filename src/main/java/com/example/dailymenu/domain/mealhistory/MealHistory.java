@@ -66,6 +66,22 @@ public class MealHistory {
         );
     }
 
+    /** 신규 식사 기록 생성 — 저장 전 id 없는 상태. confirmed 기본 false. */
+    public static MealHistory create(
+            Long userId,
+            Long recommendationId,
+            Long menuId,
+            String menuName,
+            Long restaurantId,
+            String restaurantName,
+            LocalDateTime eatenAt
+    ) {
+        return new MealHistory(
+                null, userId, recommendationId, menuId, menuName,
+                restaurantId, restaurantName, false, eatenAt, LocalDateTime.now()
+        );
+    }
+
     /**
      * 다양성 필터에서 제외 강도 결정.
      * confirmed=true → 3일간 완전 제외 대상 / confirmed=false → 2일간 점수 감소 대상

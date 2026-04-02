@@ -119,7 +119,100 @@ Redis 기반 TTL 카운터로 구현한다. 초과 시 R005(429) 반환.
 
 ---
 
-## 5. 추천 API
+## 5. 인증 API
+
+> 현재는 이메일/비밀번호 기반 인증 사용
+> 추후 카카오 소셜 로그인 추가 예정 (POST /auth/kakao)
+
+### POST /auth/register — 회원가입
+
+**Request Body**
+
+| 필드 | 타입 | 필수 | 설명 |
+|---|---|---|---|
+| email | String | Y | 이메일 |
+| password | String | Y | 비밀번호 (8자 이상) |
+| nickname | String | Y | 닉네임 |
+
+**Response 201**
+
+\```json
+{
+  "success": true,
+  "data": {
+    "userId": 1
+  }
+}
+\```
+
+---
+
+### POST /auth/login — 로그인
+
+**Request Body**
+
+| 필드 | 타입 | 필수 | 설명 |
+|---|---|---|---|
+| email | String | Y | 이메일 |
+| password | String | Y | 비밀번호 |
+
+**Response 200**
+
+\```json
+{
+  "success": true,
+  "data": {
+    "accessToken": "eyJhbGci...",
+    "refreshToken": "eyJhbGci...",
+    "expiresIn": 3600
+  }
+}
+\```
+
+---
+
+### POST /auth/refresh — Access Token 재발급
+
+**Request Body**
+
+| 필드 | 타입 | 필수 | 설명 |
+|---|---|---|---|
+| refreshToken | String | Y | Refresh Token |
+
+**Response 200**
+
+\```json
+{
+  "success": true,
+  "data": {
+    "accessToken": "eyJhbGci...",
+    "expiresIn": 3600
+  }
+}
+\```
+
+---
+
+### POST /auth/logout — 로그아웃
+
+> Refresh Token을 Redis 블랙리스트에 등록해 무효화
+
+**Request Header**
+
+\```
+Authorization: Bearer {access_token}
+\```
+
+**Response 200**
+
+\```json
+{
+  "success": true,
+  "data": null
+}
+\```
+
+## 6. 추천 API
 
 ### POST /recommendations — 메뉴 추천 요청
 
@@ -284,6 +377,10 @@ Idempotency-Key: {uuid}   # 필수
 
 **Request Body**
 
+| 필드 | 타입 | 필수 | 제약 | 설명 |
+|---|---|---|---|---|
+| reason | String | Y | TOO_FAR / NOT_HUNGRY / PREFER_SOLO / OTHER | 거절 사유 |
+| memo | String | N | - | 기타 메모 |
 ```json
 {
   "reason": "TOO_FAR",
@@ -305,7 +402,7 @@ Idempotency-Key: {uuid}   # 필수
 
 ---
 
-## 6. 식사 이력 API
+## 7. 식사 이력 API
 
 ### POST /meal-histories — 식사 기록 추가
 
@@ -379,7 +476,7 @@ Idempotency-Key: {uuid}   # 필수
 
 ---
 
-## 7. 카탈로그 API
+## 8. 카탈로그 API
 
 > Level 4 Fallback 시 사용자가 직접 탐색할 수 있는 기능을 제공한다.
 
@@ -513,7 +610,7 @@ Idempotency-Key: {uuid}   # 필수
 
 ---
 
-## 8. 상태값 / Enum 정의
+## 9. 상태값 / Enum 정의
 
 ### RecommendationStatus
 
@@ -553,7 +650,7 @@ Idempotency-Key: {uuid}   # 필수
 
 ---
 
-## 9. 업데이트 필요 사항
+## 10. 업데이트 필요 사항
 
 - [x] 인증 토큰 방식 확정 — JWT, Access Token 1시간, Refresh Token 7일
 - [x] Rate Limiting 정책 확정 — userId 기준 분당 제한, 미인증은 IP 기준

@@ -46,11 +46,17 @@ public RecommendationJpaEntity getRecommendation() { ... } // 절대 금지
 ```java
 // ✅ 커스텀 예외 사용
 public enum ErrorCode {
+    // Recommendation
     RECOMMENDATION_NOT_FOUND("R001", "추천 결과를 찾을 수 없습니다."),
     DUPLICATE_REQUEST("R002", "중복 요청입니다."),
     LOCK_ACQUISITION_FAILED("R003", "요청이 처리 중입니다. 잠시 후 다시 시도해주세요."),
-    EXTERNAL_API_UNAVAILABLE("R004", "외부 서비스를 일시적으로 사용할 수 없습니다.");
-
+    EXTERNAL_API_UNAVAILABLE("R004", "외부 서비스를 일시적으로 사용할 수 없습니다."),
+    RATE_LIMIT_EXCEEDED("R005", "요청 횟수를 초과했습니다. 잠시 후 다시 시도해주세요."),
+    // Common
+    INVALID_REQUEST("C001", "요청 파라미터 오류입니다."),
+    UNAUTHORIZED("C002", "인증에 실패했습니다."),
+    FORBIDDEN("C003", "권한이 없습니다.");
+    
     private final String code;
     private final String message;
 }

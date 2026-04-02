@@ -9,6 +9,10 @@ spring:
     properties:
       hibernate:
         format_sql: true
+    defer-datasource-initialization: true
+  sql:
+    init:
+      mode: always
 
 # JWT (api-spec.md §2: Access Token 1시간, Refresh Token 7일)
 jwt:

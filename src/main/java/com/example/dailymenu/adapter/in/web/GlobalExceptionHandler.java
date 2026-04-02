@@ -7,6 +7,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import java.util.List;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingRequestHeaderException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -25,18 +26,23 @@ public class GlobalExceptionHandler {
             BusinessException e, HttpServletRequest request) {
         ErrorCode errorCode = e.getErrorCode();
         HttpStatus status = resolveHttpStatus(errorCode);
-        log.warn("비즈니스 예외 code={} path={}", errorCode.getCode(), request.getRequestURI());
+        log.warn("비즈니스 예외 code={} path={} detail={}", errorCode.getCode(),
+                request.getRequestURI(), e.getMessage());
         return ResponseEntity.status(status)
-                .body(ErrorResponse.of(errorCode, request.getRequestURI()));
+                .body(ErrorResponse.of(errorCode, request.getRequestURI(), e.getMessage()));
     }
 
-    /** @Valid 검증 실패 → C001 (400 Bad Request) */
+    /** @Valid 검증 실패 → C001 (400 Bad Request) + 필드별 상세 사유 포함 */
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<ErrorResponse> handleValidationException(
             MethodArgumentNotValidException e, HttpServletRequest request) {
-        log.warn("요청 검증 실패 path={} errors={}", request.getRequestURI(), e.getFieldErrors());
+        List<ErrorResponse.FieldError> fieldErrors = e.getFieldErrors().stream()
+                .map(fe -> new ErrorResponse.FieldError(fe.getField(), fe.getDefaultMessage()))
+                .toList();
+        log.warn("요청 검증 실패 path={} fields={}", request.getRequestURI(), fieldErrors);
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                .body(ErrorResponse.of(ErrorCode.INVALID_REQUEST, request.getRequestURI()));
+                .body(ErrorResponse.ofValidation(ErrorCode.INVALID_REQUEST,
+                        request.getRequestURI(), fieldErrors));
     }
 
     /** 필수 헤더 누락 (예: Idempotency-Key) → C001 (400) */

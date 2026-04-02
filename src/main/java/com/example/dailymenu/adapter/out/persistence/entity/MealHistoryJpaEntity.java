@@ -2,6 +2,7 @@ package com.example.dailymenu.adapter.out.persistence.entity;
 
 import jakarta.persistence.*;
 import lombok.AccessLevel;
+import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import org.hibernate.annotations.CreationTimestamp;
@@ -65,4 +66,18 @@ public class MealHistoryJpaEntity {
     @UpdateTimestamp
     @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
+
+    @Builder
+    private MealHistoryJpaEntity(Long userId, Long recommendationId, Long menuId,
+                                  String menuName, Long restaurantId, String restaurantName,
+                                  boolean confirmed, LocalDateTime eatenAt) {
+        this.userId = userId;
+        this.recommendationId = recommendationId;
+        this.menuId = menuId;
+        this.menuName = menuName;
+        this.restaurantId = restaurantId;
+        this.restaurantName = restaurantName;
+        this.confirmed = confirmed;
+        this.eatenAt = eatenAt;
+    }
 }

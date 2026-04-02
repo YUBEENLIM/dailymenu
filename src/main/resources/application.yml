@@ -9,3 +9,9 @@ spring:
     properties:
       hibernate:
         format_sql: true
+
+# JWT (api-spec.md §2: Access Token 1시간, Refresh Token 7일)
+jwt:
+  secret: ZGFpbHltZW51LWp3dC1zZWNyZXQta2V5LWZvci1kZXZlbG9wbWVudC1vbmx5LTI1Ng== # 개발용. 운영은 환경변수로 주입.
+  access-token-expiration: 3600    # 1시간 (초)
+  refresh-token-expiration: 604800 # 7일 (초)

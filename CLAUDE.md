@@ -282,6 +282,7 @@ try { ... } catch (Exception e) {
 5.  UseCase          → 트랜잭션 시작 (@Transactional)
 6.  UseCase          → 사용자 프로필 / 식사 이력 / 추천 이력 / 위치 / 카탈로그 조회
                        (앞 3개는 서로 의존 없으므로 병렬 조회 가능)
+                       // 병렬 구현 방식: CompletableFuture.allOf() 사용, ThreadPoolTaskExecutor 빈 별도 설정
 7.  Domain           → 추천 정책 적용 (RecommendationPolicy)
 8.  UseCase          → RecommendationHistory 저장
 9.  UseCase          → 트랜잭션 커밋

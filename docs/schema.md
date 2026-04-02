@@ -134,6 +134,7 @@ CREATE TABLE users (
     last_login_at   DATETIME,
     oauth_provider  VARCHAR(50),                                -- KAKAO, GOOGLE
     oauth_id        VARCHAR(255),                               -- 소셜 로그인 고유 ID
+    password_hash  VARCHAR(255),  -- 일반 로그인용, 소셜 로그인 사용자는 NULL
     created_at      DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at      DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     deleted_at      DATETIME        DEFAULT NULL,               -- NULL이면 활성, 값 있으면 탈퇴
@@ -256,9 +257,9 @@ CREATE TABLE menus (
 CREATE TABLE recommendations (
     id                   BIGINT          NOT NULL AUTO_INCREMENT,
     user_id              BIGINT          NOT NULL,
-    menu_id              BIGINT          NOT NULL,
+    menu_id              BIGINT,                                  -- ON DELETE SET NULL, 소프트 딜리트 시 NULL 처리
     menu_name            VARCHAR(255)    NOT NULL,                -- 메뉴 삭제 시 이름 보존
-    restaurant_id        BIGINT          NOT NULL,
+    restaurant_id        BIGINT,                                  -- ON DELETE SET NULL, 소프트 딜리트 시 NULL 처리
     restaurant_name      VARCHAR(255)    NOT NULL,                -- 식당 삭제 시 이름 보존
     idempotency_key      VARCHAR(255)    NOT NULL,                -- 멱등성은 Redis에서 관리
     status               VARCHAR(50)     NOT NULL,

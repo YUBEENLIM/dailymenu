@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Daily Menu</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: sans-serif; background: #f5f5f5; color: #222; min-height: 100vh; }
+        header { background: #fff; border-bottom: 1px solid #e0e0e0; padding: 16px 24px; display: flex; align-items: center; justify-content: space-between; }
+        header h1 { font-size: 18px; font-weight: 600; }
+        #user-info { font-size: 13px; color: #666; }
+        main { max-width: 480px; margin: 32px auto; padding: 0 16px; display: flex; flex-direction: column; gap: 16px; }
+        .card { background: #fff; border-radius: 12px; border: 0.5px solid #ddd; padding: 20px; }
+        .card h2 { font-size: 15px; font-weight: 600; margin-bottom: 14px; color: #333; }
+        label { display: block; font-size: 13px; color: #555; margin-bottom: 4px; margin-top: 10px; }
+        input { width: 100%; padding: 9px 12px; border: 1px solid #ccc; border-radius: 8px; font-size: 14px; outline: none; transition: border 0.15s; }
+        input:focus { border-color: #5b7fff; }
+        .btn { width: 100%; padding: 10px; border-radius: 8px; border: none; font-size: 14px; font-weight: 600; cursor: pointer; margin-top: 14px; transition: opacity 0.15s; }
+        .btn:hover { opacity: 0.85; }
+        .btn-primary { background: #5b7fff; color: #fff; }
+        .btn-success { background: #22c55e; color: #fff; }
+        .btn-danger { background: #ef4444; color: #fff; }
+        .btn-outline { background: #fff; color: #5b7fff; border: 1px solid #5b7fff; }
+        .tabs { display: flex; gap: 8px; margin-bottom: 14px; }
+        .tab { flex: 1; padding: 8px; border-radius: 8px; border: 1px solid #ddd; background: #f9f9f9; font-size: 13px; cursor: pointer; text-align: center; }
+        .tab.active { background: #5b7fff; color: #fff; border-color: #5b7fff; }
+        .alert { padding: 10px 14px; border-radius: 8px; font-size: 13px; margin-top: 10px; }
+        .alert-success { background: #dcfce7; color: #166534; }
+        .alert-error { background: #fee2e2; color: #991b1b; }
+        .alert-info { background: #dbeafe; color: #1e40af; }
+        .rec-card { background: #f0f4ff; border-radius: 10px; padding: 14px; margin-top: 10px; }
+        .rec-card p { font-size: 13px; color: #444; margin-bottom: 4px; }
+        .rec-card strong { font-size: 15px; color: #222; }
+        .btn-row { display: flex; gap: 8px; margin-top: 10px; }
+        .btn-row .btn { margin-top: 0; }
+        .history-item { border-top: 1px solid #eee; padding: 10px 0; font-size: 13px; color: #444; }
+        .history-item:first-child { border-top: none; }
+        .tag { display: inline-block; padding: 2px 8px; border-radius: 20px; font-size: 11px; background: #e0e7ff; color: #3730a3; margin-left: 6px; }
+        select { width: 100%; padding: 9px 12px; border: 1px solid #ccc; border-radius: 8px; font-size: 14px; outline: none; }
+        .hidden { display: none; }
+    </style>
+</head>
+<body>
+
+<header>
+    <h1>🍽 Daily Menu</h1>
+    <span id="user-info">로그인 필요</span>
+</header>
+
+<main>
+
+    <!-- 인증 카드 -->
+    <div class="card" id="auth-card">
+        <div class="tabs">
+            <div class="tab active" onclick="switchTab('login')">로그인</div>
+            <div class="tab" onclick="switchTab('register')">회원가입</div>
+        </div>
+
+        <!-- 로그인 폼 -->
+        <div id="login-form">
+            <label>이메일</label>
+            <input type="email" id="login-email" placeholder="example@email.com" />
+            <label>비밀번호</label>
+            <input type="password" id="login-password" placeholder="비밀번호 입력" />
+            <button class="btn btn-primary" onclick="login()">로그인</button>
+        </div>
+
+        <!-- 회원가입 폼 -->
+        <div id="register-form" class="hidden">
+            <label>이메일</label>
+            <input type="email" id="reg-email" placeholder="example@email.com" />
+            <label>비밀번호 (8자 이상)</label>
+            <input type="password" id="reg-password" placeholder="비밀번호 입력" />
+            <label>닉네임</label>
+            <input type="text" id="reg-nickname" placeholder="닉네임 입력" />
+            <button class="btn btn-primary" onclick="register()">회원가입</button>
+        </div>
+
+        <div id="auth-msg"></div>
+    </div>
+
+    <!-- 메뉴 추천 카드 -->
+    <div class="card hidden" id="rec-card">
+        <h2>메뉴 추천 받기</h2>
+        <label>현재 위치 (위도)</label>
+        <input type="number" id="latitude" placeholder="예: 37.5665" step="any" />
+        <label>현재 위치 (경도)</label>
+        <input type="number" id="longitude" placeholder="예: 126.9780" step="any" />
+        <button class="btn btn-primary" onclick="getRecommendation()">추천 받기</button>
+
+        <div id="rec-result"></div>
+        <div id="rec-msg"></div>
+    </div>
+
+    <!-- 식사 기록 카드 -->
+    <div class="card hidden" id="history-card">
+        <h2>식사 기록</h2>
+        <button class="btn btn-outline" onclick="loadHistory()">기록 불러오기</button>
+        <div id="history-list" style="margin-top: 12px;"></div>
+    </div>
+
+</main>
+
+<script>
+    const BASE = 'http://localhost:8080';
+    let accessToken = null;
+    let currentRecommendationId = null;
+
+    function switchTab(tab) {
+        document.querySelectorAll('.tab').forEach((t, i) => {
+            t.classList.toggle('active', (i === 0 && tab === 'login') || (i === 1 && tab === 'register'));
+        });
+        document.getElementById('login-form').classList.toggle('hidden', tab !== 'login');
+        document.getElementById('register-form').classList.toggle('hidden', tab !== 'register');
+        document.getElementById('auth-msg').innerHTML = '';
+    }
+
+    function showMsg(elId, msg, type) {
+        document.getElementById(elId).innerHTML = `<div class="alert alert-${type}">${msg}</div>`;
+    }
+
+    async function apiCall(method, path, body, auth) {
+        const headers = { 'Content-Type': 'application/json' };
+        if (auth && accessToken) headers['Authorization'] = `Bearer ${accessToken}`;
+        const res = await fetch(BASE + path, {
+            method,
+            headers,
+            body: body ? JSON.stringify(body) : undefined
+        });
+        const data = await res.json().catch(() => ({}));
+        return { ok: res.ok, status: res.status, data };
+    }
+
+    async function register() {
+        const email = document.getElementById('reg-email').value.trim();
+        const password = document.getElementById('reg-password').value;
+        const nickname = document.getElementById('reg-nickname').value.trim();
+        if (!email || !password || !nickname) return showMsg('auth-msg', '모든 항목을 입력해주세요.', 'error');
+
+        try {
+            const { ok, data } = await apiCall('POST', '/auth/register', { email, password, nickname });
+            if (ok) {
+                showMsg('auth-msg', '회원가입 성공! 로그인해주세요.', 'success');
+                switchTab('login');
+            } else {
+                showMsg('auth-msg', data?.message || '회원가입 실패', 'error');
+            }
+        } catch (e) {
+            showMsg('auth-msg', '서버 연결 실패. 서버가 실행 중인지 확인하세요.', 'error');
+        }
+    }
+
+    async function login() {
+        const email = document.getElementById('login-email').value.trim();
+        const password = document.getElementById('login-password').value;
+        if (!email || !password) return showMsg('auth-msg', '이메일과 비밀번호를 입력해주세요.', 'error');
+
+        try {
+            const { ok, data } = await apiCall('POST', '/auth/login', { email, password });
+            if (ok) {
+                accessToken = data?.data?.accessToken;
+                document.getElementById('user-info').textContent = email + ' 님';
+                document.getElementById('auth-card').classList.add('hidden');
+                document.getElementById('rec-card').classList.remove('hidden');
+                document.getElementById('history-card').classList.remove('hidden');
+                showMsg('auth-msg', '', 'info');
+            } else {
+                showMsg('auth-msg', data?.message || '로그인 실패. 이메일/비밀번호를 확인하세요.', 'error');
+            }
+        } catch (e) {
+            showMsg('auth-msg', '서버 연결 실패. 서버가 실행 중인지 확인하세요.', 'error');
+        }
+    }
+
+    async function getRecommendation() {
+        const latitude = parseFloat(document.getElementById('latitude').value);
+        const longitude = parseFloat(document.getElementById('longitude').value);
+        if (isNaN(latitude) || isNaN(longitude)) return showMsg('rec-msg', '위도와 경도를 입력해주세요.', 'error');
+
+        document.getElementById('rec-result').innerHTML = '';
+        showMsg('rec-msg', '추천 중...', 'info');
+
+        try {
+            const { ok, data } = await apiCall('POST', '/recommendations', { latitude, longitude }, true);
+            if (ok) {
+                const rec = data?.data;
+                currentRecommendationId = rec?.id;
+                document.getElementById('rec-msg').innerHTML = '';
+                document.getElementById('rec-result').innerHTML = `
+          <div class="rec-card">
+            <p>추천 메뉴</p>
+            <strong>${rec?.menu?.name || '메뉴 정보 없음'}</strong>
+            <p style="margin-top:6px;">식당: ${rec?.restaurant?.name || '-'}</p>
+            <p>주소: ${rec?.restaurant?.address || '-'}</p>
+            <div class="btn-row">
+              <button class="btn btn-success" onclick="acceptRec()">채택</button>
+              <button class="btn btn-danger" onclick="rejectRec()">거절</button>
+            </div>
+          </div>
+        `;
+            } else {
+                showMsg('rec-msg', data?.message || '추천 실패', 'error');
+            }
+        } catch (e) {
+            showMsg('rec-msg', '서버 연결 실패. 서버가 실행 중인지 확인하세요.', 'error');
+        }
+    }
+
+    async function acceptRec() {
+        if (!currentRecommendationId) return;
+        try {
+            const { ok, data } = await apiCall('PATCH', `/recommendations/${currentRecommendationId}/accept`, {}, true);
+            if (ok) {
+                showMsg('rec-msg', '추천을 채택했습니다! 식사 기록에 추가되었습니다.', 'success');
+                document.getElementById('rec-result').innerHTML = '';
+            } else {
+                showMsg('rec-msg', data?.message || '채택 실패', 'error');
+            }
+        } catch (e) {
+            showMsg('rec-msg', '서버 연결 실패.', 'error');
+        }
+    }
+
+    async function rejectRec() {
+        if (!currentRecommendationId) return;
+        try {
+            const { ok, data } = await apiCall('PATCH', `/recommendations/${currentRecommendationId}/reject`, { reason: 'NOT_INTERESTED' }, true);
+            if (ok) {
+                showMsg('rec-msg', '추천을 거절했습니다. 다시 추천 받아보세요!', 'info');
+                document.getElementById('rec-result').innerHTML = '';
+            } else {
+                showMsg('rec-msg', data?.message || '거절 실패', 'error');
+            }
+        } catch (e) {
+            showMsg('rec-msg', '서버 연결 실패.', 'error');
+        }
+    }
+
+    async function loadHistory() {
+        try {
+            const { ok, data } = await apiCall('GET', '/meal-histories', null, true);
+            const list = document.getElementById('history-list');
+            if (ok) {
+                const items = data?.data?.content || [];
+                if (items.length === 0) {
+                    list.innerHTML = '<p style="font-size:13px;color:#888;">식사 기록이 없습니다.</p>';
+                    return;
+                }
+                list.innerHTML = items.map(item => `
+          <div class="history-item">
+            <strong>${item.menuName || '메뉴'}</strong>
+            <span class="tag">${item.restaurantName || '-'}</span>
+            <p style="margin-top:4px;color:#888;">${item.eatenAt ? new Date(item.eatenAt).toLocaleString('ko-KR') : ''}</p>
+          </div>
+        `).join('');
+            } else {
+                list.innerHTML = '<p style="font-size:13px;color:#e11d48;">기록 불러오기 실패</p>';
+            }
+        } catch (e) {
+            document.getElementById('history-list').innerHTML = '<p style="font-size:13px;color:#e11d48;">서버 연결 실패</p>';
+        }
+    }
+</script>
+
+</body>
+</html>

@@ -21,7 +21,7 @@ import java.util.Set;
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private static final Set<String> PUBLIC_PATHS = Set.of(
-            "/auth/register", "/auth/login", "/auth/refresh", "/health"
+            "/auth/", "/health", "/swagger-ui", "/v3/api-docs", "/swagger-ui.html"
     );
 
     private final TokenPort tokenPort;

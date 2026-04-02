@@ -1,26 +1,5 @@
 version: "3.8"
 services:
-  app:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    container_name: dailymenu-app
-    ports:
-      - "8080:8080"
-    environment:
-      SPRING_DATASOURCE_URL: jdbc:mysql://db:3306/dailymenu?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Seoul
-      SPRING_DATASOURCE_USERNAME: root
-      SPRING_DATASOURCE_PASSWORD: 1234
-      SPRING_DATA_REDIS_HOST: cache
-      SPRING_DATA_REDIS_PORT: 6379
-    depends_on:
-      db:
-        condition: service_healthy
-      cache:
-        condition: service_healthy
-    networks:
-      - backend
-
   db:
     image: mysql:8.0
     container_name: dailymenu-mysql
@@ -31,6 +10,7 @@ services:
       MYSQL_DATABASE: dailymenu
     volumes:
       - mysql-data:/var/lib/mysql
+      - ./init:/docker-entrypoint-initdb.d
     command:
       - --default-authentication-plugin=mysql_native_password
     healthcheck:

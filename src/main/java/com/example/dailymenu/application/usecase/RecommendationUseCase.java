@@ -21,8 +21,8 @@ import com.example.dailymenu.domain.recommendation.port.RecommendationRepository
 import com.example.dailymenu.domain.restaurant.Restaurant;
 import com.example.dailymenu.domain.user.UserProfile;
 import com.example.dailymenu.domain.user.port.UserProfileRepositoryPort;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -30,6 +30,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
+import java.util.concurrent.Executor;
 import java.util.stream.Collectors;
 
 /**
@@ -49,7 +50,6 @@ import java.util.stream.Collectors;
  *   - DB connection pool 과부하 방지: 병렬 조회는 3개로 제한
  */
 @Service
-@RequiredArgsConstructor
 @Slf4j
 public class RecommendationUseCase {
 
@@ -59,20 +59,39 @@ public class RecommendationUseCase {
     private final RecommendationRepositoryPort recommendationRepositoryPort;
     private final RecommendationHistoryRepositoryPort recommendationHistoryRepositoryPort;
     private final MealHistoryRepositoryPort mealHistoryRepositoryPort;
+    private final Executor queryExecutor; // 변경: Spring 관리 스레드 풀 주입
 
     private final RecommendationPolicy policy = new RecommendationPolicy();
+
+    public RecommendationUseCase(
+            PlacePort placePort,
+            UserProfileRepositoryPort userProfileRepositoryPort,
+            MenuCatalogRepositoryPort menuCatalogRepositoryPort,
+            RecommendationRepositoryPort recommendationRepositoryPort,
+            RecommendationHistoryRepositoryPort recommendationHistoryRepositoryPort,
+            MealHistoryRepositoryPort mealHistoryRepositoryPort,
+            @Qualifier("recommendationQueryExecutor") Executor queryExecutor
+    ) {
+        this.placePort = placePort;
+        this.userProfileRepositoryPort = userProfileRepositoryPort;
+        this.menuCatalogRepositoryPort = menuCatalogRepositoryPort;
+        this.recommendationRepositoryPort = recommendationRepositoryPort;
+        this.recommendationHistoryRepositoryPort = recommendationHistoryRepositoryPort;
+        this.mealHistoryRepositoryPort = mealHistoryRepositoryPort;
+        this.queryExecutor = queryExecutor;
+    }
 
     // ─── 추천 실행 (Happy Path Step 5~9) ───────────────────────────────────
 
     @Transactional
     public RecommendationResult execute(RecommendationCommand command) {
-        // Step 6-a: 상호 독립 데이터 병렬 조회
+        // Step 6-a: 상호 독립 데이터 병렬 조회 (Spring 관리 Executor 사용 — JPA Session 획득 보장)
         CompletableFuture<UserProfile> userProfileFuture = CompletableFuture.supplyAsync(
-                () -> loadUserProfile(command.userId()));
+                () -> loadUserProfile(command.userId()), queryExecutor);
         CompletableFuture<List<MealHistory>> mealHistoryFuture = CompletableFuture.supplyAsync(
-                () -> mealHistoryRepositoryPort.findRecentByUserId(command.userId(), 3));
+                () -> mealHistoryRepositoryPort.findRecentByUserId(command.userId(), 3), queryExecutor);
         CompletableFuture<List<Recommendation>> historyFuture = CompletableFuture.supplyAsync(
-                () -> recommendationHistoryRepositoryPort.findRecentByUserId(command.userId(), 3));
+                () -> recommendationHistoryRepositoryPort.findRecentByUserId(command.userId(), 3), queryExecutor);
 
         awaitAll(command.userId(), userProfileFuture, mealHistoryFuture, historyFuture);
 

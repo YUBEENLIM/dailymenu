@@ -23,7 +23,7 @@ import java.util.Map;
 public class RedisRateLimitAdapter implements RateLimitPort {
 
     private static final Map<String, int[]> LIMITS = Map.of(
-            "recommendations", new int[]{5, 20},   // 분당 5회, 시간당 20회
+            "recommendations", new int[]{10, 30},   // 분당 5회, 시간당 20회
             "meal-histories", new int[]{10, 0},     // 분당 10회, 시간당 제한 없음
             "restaurants", new int[]{30, 0}          // 분당 30회, 시간당 제한 없음
     );

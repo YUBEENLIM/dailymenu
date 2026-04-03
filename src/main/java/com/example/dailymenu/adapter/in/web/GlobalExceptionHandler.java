@@ -26,8 +26,15 @@ public class GlobalExceptionHandler {
             BusinessException e, HttpServletRequest request) {
         ErrorCode errorCode = e.getErrorCode();
         HttpStatus status = resolveHttpStatus(errorCode);
-        log.warn("비즈니스 예외 code={} path={} detail={}", errorCode.getCode(),
-                request.getRequestURI(), e.getMessage());
+        // 503 계열 에러는 ERROR 레벨 + 전체 스택트레이스 출력
+        if (status == HttpStatus.SERVICE_UNAVAILABLE) {
+            log.error("[DIAG] 503 BusinessException code={} path={} cause={}",
+                    errorCode.getCode(), request.getRequestURI(),
+                    e.getCause() != null ? e.getCause().getClass().getName() : "none", e);
+        } else {
+            log.warn("비즈니스 예외 code={} path={} detail={}", errorCode.getCode(),
+                    request.getRequestURI(), e.getMessage());
+        }
         return ResponseEntity.status(status)
                 .body(ErrorResponse.of(errorCode, request.getRequestURI(), e.getMessage()));
     }
@@ -67,7 +74,11 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ErrorResponse> handleUnexpected(
             Exception e, HttpServletRequest request) {
-        log.error("예상하지 못한 오류 path={}", request.getRequestURI(), e);
+        log.error("[DIAG] 미처리 예외 path={} exType={} msg={} causeType={} causeMsg={}",
+                request.getRequestURI(),
+                e.getClass().getName(), e.getMessage(),
+                e.getCause() != null ? e.getCause().getClass().getName() : "none",
+                e.getCause() != null ? e.getCause().getMessage() : "none", e);
         return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
                 .body(ErrorResponse.of(ErrorCode.EXTERNAL_API_UNAVAILABLE, request.getRequestURI()));
     }

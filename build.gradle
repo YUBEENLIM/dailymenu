@@ -76,3 +76,7 @@ tasks.withType(Test).configureEach {
 tasks.named('test') {
 	useJUnitPlatform()
 }
+
+bootRun {
+	jvmArgs = ['-Dfile.encoding=UTF-8']
+}

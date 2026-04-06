@@ -79,17 +79,21 @@
 `PlacePort` 인터페이스(포트)만 정의해두면, 어댑터만 추가해서 교체 가능하다.
 도메인 로직은 외부 API 변경에 전혀 영향받지 않는다.
 
+**패키지 구조: Context 우선(context-first)**
+각 Bounded Context(recommendation, user, mealhistory, catalog, place)가 자체 domain/application/adapter를 소유한다.
+공통 인프라(예외, 분산 락, 멱등성 등)는 shared/ 패키지에 위치한다.
+
 ```
 [외부 세계]
-  HTTP 요청 → [Driving Adapter: Controller]
+  HTTP 요청 → [Driving Adapter: {context}/adapter/in]
                         ↓
-              [Application: Facade / UseCase]
+              [Application: {context}/application — Facade / UseCase]
                         ↓
-                [Domain: 순수 비즈니스 로직]
+                [Domain: {context}/domain — 순수 비즈니스 로직]
                         ↓
-              [Port Interface 정의]
+              [Port Interface: {context}/domain/port]
                         ↓
-  [Driven Adapter: JPA Repository / KakaoApiClient / RedisClient]
+  [Driven Adapter: {context}/adapter/out]
         ↓                   ↓                    ↓
       MySQL           카카오맵 API             Redis
 ```
@@ -163,7 +167,7 @@ public List<Menu> getMenus() { return null; }
 
 ### AI가 자주 저지르는 실수 — 방지
 
-- **포트/어댑터 방향 역전 금지**: Domain이 Adapter를 직접 참조하면 헥사고날이 무너진다. Domain은 Port 인터페이스만 알아야 한다.
+- **포트/어댑터 방향 역전 금지**: Domain이 Adapter를 직접 참조하면 헥사고날이 무너진다. Domain은 Port 인터페이스만 알아야 한다. 다른 Context를 참조할 때도 반드시 해당 Context의 Port를 통해 접근한다.
 - **N+1 문제**: Fetch Join 또는 `@BatchSize` 없이 연관 엔티티 조회 금지.
 - **트랜잭션 내부 호출**: `@Transactional` 메서드를 같은 클래스 내에서 호출하면 AOP가 동작하지 않는다. Facade와 UseCase는 반드시 별도 클래스로 분리해라.
 - **락과 트랜잭션 순서**: 분산 락은 트랜잭션 시작 전에 획득, 트랜잭션 커밋 후에 해제해라.
@@ -299,3 +303,12 @@ try { ... } catch (Exception e) {
 - 병렬 처리 기준:
   - 서로 의존성이 없는 조회만 병렬 처리
   - DB connection pool 고려 (과도한 병렬 금지)
+
+---
+
+## 7. Session Tracking
+
+- 작업 기록 파일: `docs/session-progress.md`
+- 사용자가 작업 저장을 요청하면 (예: "작업 내용 저장해줘", "오늘 한 거 정리해줘") → `docs/session-progress.md`에 날짜별로 기록
+- 사용자가 이전 작업을 물어보면 (예: "이전에 뭐 했어?", "어디까지 했어?") → `docs/session-progress.md`를 읽고 요약
+- 미완료 항목은 `## 미완료` 섹션에 유지하고, 완료되면 해당 날짜 섹션으로 이동

@@ -1,12 +1,12 @@
 package com.example.dailymenu.config;
 
-import com.example.dailymenu.application.port.out.IdempotencyEntry;
-import com.example.dailymenu.application.port.out.IdempotencyPort;
-import com.example.dailymenu.application.port.out.IdempotencyStatus;
-import com.example.dailymenu.application.port.out.LockPort;
-import com.example.dailymenu.application.port.out.RateLimitPort;
-import com.example.dailymenu.domain.place.NearbyRestaurant;
-import com.example.dailymenu.domain.place.port.PlacePort;
+import com.example.dailymenu.shared.application.port.out.IdempotencyEntry;
+import com.example.dailymenu.shared.application.port.out.IdempotencyPort;
+import com.example.dailymenu.shared.application.port.out.IdempotencyStatus;
+import com.example.dailymenu.shared.application.port.out.LockPort;
+import com.example.dailymenu.shared.application.port.out.RateLimitPort;
+import com.example.dailymenu.place.domain.NearbyRestaurant;
+import com.example.dailymenu.place.domain.port.PlacePort;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 

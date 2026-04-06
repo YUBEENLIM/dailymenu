@@ -100,21 +100,21 @@ public class Recommendation { ... }
 실행 제어용 Port(예: `LockPort`, `RateLimitPort`)는 Application에서 정의할 수 있다.
 
 ```java
-// ✅ 도메인 규칙 수행에 필요한 Port → domain 패키지
-// domain/place/port/PlacePort.java
+// ✅ 도메인 규칙 수행에 필요한 Port → 해당 Context의 domain/port 패키지
+// place/domain/port/PlacePort.java
 public interface PlacePort {
     List<NearbyRestaurant> findNearby(double lat, double lng);
 }
 
-// ✅ 실행 제어용 Port → application 패키지
-// application/port/out/LockPort.java
+// ✅ 실행 제어용 Port → shared/application/port/out 패키지
+// shared/application/port/out/LockPort.java
 public interface LockPort {
     boolean tryLock(String key, long ttlSeconds);
     void unlock(String key);
 }
 
-// ✅ Adapter는 adapter/out 패키지에서 구현
-// adapter/out/place/kakao/KakaoPlaceAdapter.java
+// ✅ Adapter는 해당 Context의 adapter/out 패키지에서 구현
+// place/adapter/out/KakaoPlaceAdapter.java
 @Component
 public class KakaoPlaceAdapter implements PlacePort {
     @Override
@@ -124,8 +124,8 @@ public class KakaoPlaceAdapter implements PlacePort {
 }
 
 // ❌ 금지: Domain이 Adapter를 직접 참조
-// domain/recommendation/RecommendationPolicy.java
-import com.example.adapter.out.place.kakao.KakaoPlaceAdapter; // 절대 금지
+// recommendation/domain/RecommendationPolicy.java
+import com.example.dailymenu.place.adapter.out.KakaoPlaceAdapter; // 절대 금지
 ```
 
 ### Application 레이어 — Facade vs UseCase 분리
@@ -239,11 +239,11 @@ class RecommendationUseCaseTest {
 
 ```java
 // ❌ 치명적 실수: Domain이 Adapter를 직접 참조
-package com.example.domain.recommendation;
-import com.example.adapter.out.place.kakao.KakaoPlaceAdapter; // 헥사고날 붕괴
+package com.example.dailymenu.recommendation.domain;
+import com.example.dailymenu.place.adapter.out.KakaoPlaceAdapter; // 헥사고날 붕괴
 
 // ✅ Domain은 Port(인터페이스)만 참조
-import com.example.domain.place.port.PlacePort; // 올바른 참조
+import com.example.dailymenu.place.domain.port.PlacePort; // 올바른 참조
 ```
 
 ### N+1 문제

@@ -58,17 +58,13 @@ public class MealHistoryUseCase {
             int totalPages
     ) {}
 
-    // ─── 식사 기록 추가 ──────────────────────────────────────────────────────
-
     @Transactional
     public Long recordMeal(MealHistoryCommand command) {
         MealHistory mealHistory;
 
         if (command.recommendationId() != null) {
-            // recommendationId 있으면 → 추천 데이터에서 메뉴·식당 정보 추출
             mealHistory = createFromRecommendation(command);
         } else {
-            // recommendationId 없으면 → menuId + restaurantId 필수
             mealHistory = createFromDirect(command);
         }
 
@@ -76,8 +72,6 @@ public class MealHistoryUseCase {
         log.info("식사 기록 저장 userId={} mealHistoryId={}", command.userId(), saved.getId());
         return saved.getId();
     }
-
-    // ─── 식사 이력 조회 ──────────────────────────────────────────────────────
 
     @Transactional(readOnly = true)
     public PagedResult<MealHistoryItemResult> getHistories(
@@ -102,9 +96,6 @@ public class MealHistoryUseCase {
         );
     }
 
-    // ─── private 헬퍼 ────────────────────────────────────────────────────────
-
-    /** 추천 기반 식사 기록 — 추천 데이터에서 메뉴·식당 정보 추출 */
     private MealHistory createFromRecommendation(MealHistoryCommand command) {
         Recommendation rec = recommendationRepositoryPort
                 .findById(command.recommendationId())
@@ -121,7 +112,6 @@ public class MealHistoryUseCase {
         );
     }
 
-    /** 직접 입력 식사 기록 — menuId + restaurantId 필수 검증 후 카탈로그에서 이름 조회 */
     private MealHistory createFromDirect(MealHistoryCommand command) {
         if (command.menuId() == null || command.restaurantId() == null) {
             throw new BusinessException(ErrorCode.INVALID_REQUEST,

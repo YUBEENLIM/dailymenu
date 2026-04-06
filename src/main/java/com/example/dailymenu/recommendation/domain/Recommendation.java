@@ -60,7 +60,6 @@ public class Recommendation {
         this.updatedAt = updatedAt;
     }
 
-    /** 신규 추천 생성 — 저장 전 id 없는 상태 */
     public static Recommendation create(
             Long userId,
             Long menuId,
@@ -79,8 +78,7 @@ public class Recommendation {
         );
     }
 
-    /** DB 조회 시 재구성 */
-    public static Recommendation of(
+    public static Recommendation reconstruct(
             Long id,
             Long userId,
             Long menuId,
@@ -102,13 +100,11 @@ public class Recommendation {
         );
     }
 
-    /** 사용자가 추천을 수락 */
     public void accept() {
         this.status = RecommendationStatus.ACCEPTED;
         this.updatedAt = LocalDateTime.now();
     }
 
-    /** 사용자가 추천을 거절 */
     public void reject(RejectReason reason) {
         this.status = RecommendationStatus.REJECTED;
         this.rejectReason = reason;
@@ -119,7 +115,6 @@ public class Recommendation {
         return status == RecommendationStatus.RECOMMENDED;
     }
 
-    /** Fallback 없이 생성된 정상 추천인지 확인 */
     public boolean isNormalRecommendation() {
         return fallbackLevel == null;
     }

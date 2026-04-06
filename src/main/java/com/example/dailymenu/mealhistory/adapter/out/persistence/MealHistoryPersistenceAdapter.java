@@ -59,8 +59,6 @@ public class MealHistoryPersistenceAdapter implements MealHistoryRepositoryPort 
         );
     }
 
-    // ─── Entity ↔ Domain 변환 ────────────────────────────────────────────────
-
     private MealHistoryJpaEntity toEntity(MealHistory domain) {
         return MealHistoryJpaEntity.builder()
                 .userId(domain.getUserId())
@@ -75,7 +73,7 @@ public class MealHistoryPersistenceAdapter implements MealHistoryRepositoryPort 
     }
 
     private MealHistory toDomain(MealHistoryJpaEntity entity) {
-        return MealHistory.of(
+        return MealHistory.reconstruct(
                 entity.getId(),
                 entity.getUserId(),
                 entity.getRecommendationId(),

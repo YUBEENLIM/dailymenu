@@ -201,6 +201,9 @@
 ## 5. Fallback 정책 (4단계)
 
 추천 품질이 저하되거나 외부 API에 장애가 생기면 아래 순서로 Fallback한다.
+
+> 기술 설정 (Circuit Breaker, Resilience4j): `/docs/architecture.md` §11
+
 **핵심 원칙: 장애가 나더라도 추천 경험 자체가 완전히 끊기지 않는 것이 목표다.**
 
 ### Level 1 — Best Effort (캐시 기반)

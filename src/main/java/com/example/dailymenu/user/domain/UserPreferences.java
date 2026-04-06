@@ -33,7 +33,7 @@ public class UserPreferences {
         this.preferredCategories = preferredCategories == null ? List.of() : List.copyOf(preferredCategories);
     }
 
-    public static UserPreferences of(
+    public static UserPreferences reconstruct(
             boolean preferSolo,
             Integer minPrice,
             Integer maxPrice,
@@ -43,7 +43,6 @@ public class UserPreferences {
         return new UserPreferences(preferSolo, minPrice, maxPrice, healthFilter, preferredCategories);
     }
 
-    /** 메뉴 가격이 사용자 가격 범위 내에 있는지 확인 */
     public boolean isWithinPriceRange(int price) {
         if (minPrice != null && price < minPrice) {
             return false;
@@ -54,7 +53,6 @@ public class UserPreferences {
         return true;
     }
 
-    /** 선호 카테고리 여부 확인 */
     public boolean isPreferredCategory(MenuCategory category) {
         return preferredCategories.contains(category);
     }

@@ -20,7 +20,6 @@ public interface MealHistoryJpaRepository extends JpaRepository<MealHistoryJpaEn
             LocalDateTime after
     );
 
-    /** 기간별 식사 이력 페이징 조회 — GET /meal-histories 용 */
     Page<MealHistoryJpaEntity> findByUserIdAndEatenAtBetweenOrderByEatenAtDesc(
             Long userId, LocalDateTime from, LocalDateTime to, Pageable pageable);
 }

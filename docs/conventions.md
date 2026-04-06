@@ -296,6 +296,8 @@ public void recommend() {        // Facade — @Transactional 없음
 }
 ```
 
+> 설계 관점 상세: `/docs/architecture.md` §13
+
 ### @Data 남용 금지
 
 ```java

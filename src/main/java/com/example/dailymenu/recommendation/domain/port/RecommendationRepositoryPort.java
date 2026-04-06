@@ -11,9 +11,7 @@ import java.util.Optional;
  */
 public interface RecommendationRepositoryPort {
 
-    /** 추천 결과 저장 (신규 생성) */
     Recommendation save(Recommendation recommendation);
 
-    /** 추천 ID 로 단건 조회 */
     Optional<Recommendation> findById(Long id);
 }

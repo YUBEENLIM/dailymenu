@@ -48,7 +48,7 @@ public class MealHistory {
         this.createdAt = createdAt;
     }
 
-    public static MealHistory of(
+    public static MealHistory reconstruct(
             Long id,
             Long userId,
             Long recommendationId,
@@ -66,7 +66,6 @@ public class MealHistory {
         );
     }
 
-    /** 신규 식사 기록 생성 — 저장 전 id 없는 상태. confirmed 기본 false. */
     public static MealHistory create(
             Long userId,
             Long recommendationId,

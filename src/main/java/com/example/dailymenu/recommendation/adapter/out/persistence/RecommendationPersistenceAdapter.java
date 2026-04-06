@@ -28,8 +28,6 @@ public class RecommendationPersistenceAdapter
 
     private final RecommendationJpaRepository recommendationJpaRepository;
 
-    // ─── RecommendationRepositoryPort ──────────────────────────────────────
-
     /**
      * 신규 추천 저장 또는 기존 추천 상태 갱신(수락/거절).
      * id == null → INSERT / id != null → 기존 Entity 상태 변경 후 flush.
@@ -53,8 +51,6 @@ public class RecommendationPersistenceAdapter
         return recommendationJpaRepository.findById(id).map(this::toDomain);
     }
 
-    // ─── RecommendationHistoryRepositoryPort ───────────────────────────────
-
     @Override
     @Transactional(readOnly = true)
     public List<Recommendation> findRecentByUserId(Long userId, int days) {
@@ -65,8 +61,6 @@ public class RecommendationPersistenceAdapter
                 .map(this::toDomain)
                 .toList();
     }
-
-    // ─── Entity ↔ Domain 변환 ────────────────────────────────────────────────
 
     private RecommendationJpaEntity toEntity(Recommendation domain) {
         return RecommendationJpaEntity.builder()
@@ -81,12 +75,11 @@ public class RecommendationPersistenceAdapter
                 .rejectReason(domain.getRejectReason())
                 .recommendationScore(domain.getRecommendationScore())
                 .fallbackLevel(domain.getFallbackLevel())
-                // createdAt / updatedAt 은 @CreationTimestamp / @UpdateTimestamp 가 관리
                 .build();
     }
 
     private Recommendation toDomain(RecommendationJpaEntity entity) {
-        return Recommendation.of(
+        return Recommendation.reconstruct(
                 entity.getId(),
                 entity.getUserId(),
                 entity.getMenuId(),

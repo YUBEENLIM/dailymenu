@@ -11,8 +11,10 @@
 - CLAUDE.md 경량화: 코드 예시 제거, 요약형으로 변경, docs 섹션 참조 링크로 대체
 - 문서 교차 참조 추가: api-spec.md, business.md, conventions.md에 architecture.md 섹션 참조
 - 팩토리 메서드 리네이밍: 6개 도메인 클래스 `of()` → `reconstruct()`, 6개 어댑터 호출부 업데이트
-- 코드 가독성 개선: 불필요한 주석 ~50개 + 구분선 23개 제거 (19개 파일)
+- 코드 가독성 개선: 불필요한 주석 ~60개 + 구분선 23개 제거 (22개 파일)
 - /simplify 코드 리뷰: 도메인 Javadoc 헥사고날 위반 수정, 마크다운 포맷 수정
+- awesome-claude-md 레포 분석 → 커밋 메시지 규칙(conventions.md §7) 추가
+- 끊긴 세션 작업 내용 git diff로 대조·보정
 
 ## 미완료
 - CLAUDE.md 핵심 클래스 파일 경로 가이드 추가 — 구조 안정화 후 적용. Context별 주요 클래스(Facade, UseCase, Policy, Port, Adapter, Controller) 경로를 테이블로 정리하면 AI 탐색 비용 절감

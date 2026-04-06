@@ -63,10 +63,10 @@
 | 구분 | 선택 |
 |---|---|
 | Language | Java 17 |
-| Framework | Spring Boot 3.x |
+| Framework | Spring Boot 4.0.5 |
 | Build | Gradle (Groovy DSL) |
 | ORM | JPA / Hibernate |
-| DB | MySQL 8.x (로컬: Docker) |
+| DB | MySQL 8.0 (로컬: Docker) |
 | Redis | 분산 락 / 멱등성 키 / 캐시 / Pub/Sub 대기 (단순 캐시가 아님) |
 | 외부 지도 API | 카카오맵 API (기본), 향후 네이버맵/공공데이터 추가 예정 |
 | Test | JUnit 5, Mockito, Testcontainers, Cucumber |

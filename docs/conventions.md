@@ -388,3 +388,30 @@ log.error("분산 락 획득 실패 userId={} reason={}", userId, e.getMessage()
 // ❌ 금지: 민감 정보 직접 출력
 log.info("사용자 정보: {}", userProfile); // 위치, 식사 기록 등 개인정보 포함 금지
 ```
+
+---
+
+## 7. 커밋 메시지 규칙
+
+### 형식
+
+```
+<type>: <설명>
+```
+
+### type 목록
+
+| type | 용도 | 예시 |
+|---|---|---|
+| `feat` | 새 기능 추가 | `feat: 추천 Fallback Level 2 구현` |
+| `fix` | 버그 수정 | `fix: CompletableFuture 타임아웃 누락 수정` |
+| `refactor` | 동작 변경 없는 구조 개선 | `refactor: 도메인 팩토리 메서드 of→reconstruct 리네이밍` |
+| `docs` | 문서만 변경 | `docs: architecture.md에 Rate Limiting 섹션 추가` |
+| `test` | 테스트 추가/수정 | `test: RecommendationPolicy 다양성 필터 단위 테스트` |
+| `chore` | 빌드, 설정, 의존성 | `chore: Resilience4j 의존성 추가` |
+
+### 규칙
+
+- 한글 또는 영어 통일 — 프로젝트 내 혼용하지 않는다
+- 제목은 50자 이내, 끝에 마침표 없음
+- 본문이 필요하면 빈 줄 후 작성 (WHY 중심)

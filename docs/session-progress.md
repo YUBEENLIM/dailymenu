@@ -15,4 +15,5 @@
 - /simplify 코드 리뷰: 도메인 Javadoc 헥사고날 위반 수정, 마크다운 포맷 수정
 
 ## 미완료
-- (없음)
+- CLAUDE.md 핵심 클래스 파일 경로 가이드 추가 — 구조 안정화 후 적용. Context별 주요 클래스(Facade, UseCase, Policy, Port, Adapter, Controller) 경로를 테이블로 정리하면 AI 탐색 비용 절감
+- conventions.md 테스트 체크리스트 추가 — 테스트 본격 작성 시 적용. Domain(순수 단위)/UseCase(Mock Port)/Adapter(Testcontainers) 구분, 동시성 테스트 CountDownLatch 패턴, 금지 패턴(@SpringBootTest 남용, Thread.sleep 대기) 포함

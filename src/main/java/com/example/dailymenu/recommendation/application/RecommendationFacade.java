@@ -40,7 +40,7 @@ import java.util.Optional;
 public class RecommendationFacade {
 
     private static final long LOCK_TTL_SECONDS = 5L;
-    private static final long IDEMPOTENCY_TTL_SECONDS = 300L; // 5분
+    private static final long IDEMPOTENCY_TTL_SECONDS = 300L;
 
     private final LockPort lockPort;
     private final IdempotencyPort idempotencyPort;
@@ -48,39 +48,32 @@ public class RecommendationFacade {
     private final RecommendationUseCase recommendationUseCase;
 
     public RecommendationResult recommend(RecommendationCommand command) {
-        // Step 1: Rate Limit 확인 (분당 5회, 시간당 20회)
         if (!rateLimitPort.tryConsume(command.userId(), "recommendations")) {
             throw new BusinessException(ErrorCode.RATE_LIMIT_EXCEEDED);
         }
 
-        // Step 2: Idempotency Key 확인 — PROCESSING/COMPLETED 면 즉시 반환
         String requestHash = hashRequest(command);
         Optional<IdempotencyEntry> existing = idempotencyPort.find(command.idempotencyKey());
         if (existing.isPresent()) {
             return handleDuplicateRequest(existing.get(), requestHash);
         }
 
-        // Step 3: 분산 락 획득 (TTL 5초)
         String lockKey = "recommendation:lock:" + command.userId();
         if (!lockPort.tryLock(lockKey, LOCK_TTL_SECONDS)) {
             throw new BusinessException(ErrorCode.LOCK_ACQUISITION_FAILED);
         }
 
         try {
-            // Step 4: 락 내부에서 멱등성 재확인 (경쟁 조건 방지)
             Optional<IdempotencyEntry> doubleCheck = idempotencyPort.find(command.idempotencyKey());
             if (doubleCheck.isPresent()) {
                 return handleDuplicateRequest(doubleCheck.get(), requestHash);
             }
 
-            // Step 5: PROCESSING 상태 저장 (락 보유 상태에서만)
             idempotencyPort.markProcessing(
                     command.idempotencyKey(), requestHash, IDEMPOTENCY_TTL_SECONDS);
 
-            // Step 6: UseCase 실행 (@Transactional 커밋 완료 후 반환)
             RecommendationResult result = recommendationUseCase.execute(command);
 
-            // Step 7: COMPLETED 상태 저장
             idempotencyPort.markCompleted(
                     command.idempotencyKey(), requestHash,
                     result.recommendationId(), IDEMPOTENCY_TTL_SECONDS);
@@ -96,12 +89,9 @@ public class RecommendationFacade {
                     command.idempotencyKey(), requestHash, IDEMPOTENCY_TTL_SECONDS);
             throw new BusinessException(ErrorCode.EXTERNAL_API_UNAVAILABLE);
         } finally {
-            // Step 8: 락 해제 — 반드시 커밋 이후, finally 블록에서 보장
             lockPort.unlock(lockKey);
         }
     }
-
-    // ─── 채택 / 거절 (락·멱등성 불필요 — UseCase 직접 위임) ─────────────────────
 
     public StatusUpdateResult accept(Long recommendationId) {
         return recommendationUseCase.acceptRecommendation(recommendationId);
@@ -110,8 +100,6 @@ public class RecommendationFacade {
     public StatusUpdateResult reject(Long recommendationId, RejectReason reason) {
         return recommendationUseCase.rejectRecommendation(recommendationId, reason);
     }
-
-    // ─── private 헬퍼 ────────────────────────────────────────────────────────
 
     private RecommendationResult handleDuplicateRequest(
             IdempotencyEntry entry,

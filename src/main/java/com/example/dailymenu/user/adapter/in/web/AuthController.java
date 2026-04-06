@@ -19,7 +19,6 @@ public class AuthController {
 
     private final AuthUseCase authUseCase;
 
-    /** POST /auth/register — 회원가입. 201 Created. */
     @PostMapping("/register")
     @ResponseStatus(HttpStatus.CREATED)
     public RegisterResponse register(
@@ -30,7 +29,6 @@ public class AuthController {
         return new RegisterResponse(userId);
     }
 
-    /** POST /auth/login — 로그인. Access Token 1시간, Refresh Token 7일. */
     @PostMapping("/login")
     public LoginResponse login(
             @RequestBody @Valid LoginRequest request
@@ -40,7 +38,6 @@ public class AuthController {
         return new LoginResponse(result.accessToken(), result.refreshToken(), result.expiresIn());
     }
 
-    /** POST /auth/refresh — Access Token 재발급. */
     @PostMapping("/refresh")
     public RefreshResponse refresh(
             @RequestBody @Valid RefreshRequest request
@@ -49,7 +46,6 @@ public class AuthController {
         return new RefreshResponse(result.accessToken(), result.expiresIn());
     }
 
-    /** POST /auth/logout — Refresh Token 무효화 (Redis 블랙리스트 등록). */
     @PostMapping("/logout")
     public void logout(
             @RequestAttribute("userId") Long userId

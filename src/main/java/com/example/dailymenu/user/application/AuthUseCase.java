@@ -34,8 +34,6 @@ public class AuthUseCase {
 
     public record RefreshResult(String accessToken, long expiresIn) {}
 
-    // ─── 회원가입 ────────────────────────────────────────────────────────────
-
     @Transactional
     public Long register(String email, String password, String nickname) {
         if (userAuthPort.existsByEmail(email)) {
@@ -48,8 +46,6 @@ public class AuthUseCase {
         log.info("회원가입 완료 userId={}", userId);
         return userId;
     }
-
-    // ─── 로그인 ──────────────────────────────────────────────────────────────
 
     @Transactional
     public LoginResult login(String email, String password) {
@@ -74,8 +70,6 @@ public class AuthUseCase {
         return new LoginResult(accessToken, refreshToken, tokenPort.getAccessTokenExpirationSeconds());
     }
 
-    // ─── 토큰 갱신 ───────────────────────────────────────────────────────────
-
     public RefreshResult refresh(String refreshToken) {
         Long userId;
         try {
@@ -84,7 +78,6 @@ public class AuthUseCase {
             throw new BusinessException(ErrorCode.UNAUTHORIZED);
         }
 
-        // Redis 에 저장된 Refresh Token 과 일치하는지 확인
         String stored = refreshTokenPort.find(userId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.UNAUTHORIZED));
 
@@ -95,8 +88,6 @@ public class AuthUseCase {
         String newAccessToken = tokenPort.generateAccessToken(userId);
         return new RefreshResult(newAccessToken, tokenPort.getAccessTokenExpirationSeconds());
     }
-
-    // ─── 로그아웃 ────────────────────────────────────────────────────────────
 
     public void logout(Long userId) {
         refreshTokenPort.invalidate(userId);

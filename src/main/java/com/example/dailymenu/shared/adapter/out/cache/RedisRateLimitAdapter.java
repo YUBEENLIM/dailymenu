@@ -36,14 +36,12 @@ public class RedisRateLimitAdapter implements RateLimitPort {
         int perMinute = limits[0];
         int perHour = limits[1];
 
-        // 분당 제한 확인
         if (!checkAndIncrement("rate_limit:min:" + userId + ":" + apiName,
                 perMinute, Duration.ofSeconds(60))) {
             log.warn("Rate Limit 초과 (분당) userId={} apiName={}", userId, apiName);
             return false;
         }
 
-        // 시간당 제한 확인 (0이면 제한 없음)
         if (perHour > 0 && !checkAndIncrement("rate_limit:hour:" + userId + ":" + apiName,
                 perHour, Duration.ofSeconds(3600))) {
             log.warn("Rate Limit 초과 (시간당) userId={} apiName={}", userId, apiName);
@@ -57,7 +55,6 @@ public class RedisRateLimitAdapter implements RateLimitPort {
         Long count = redisTemplate.opsForValue().increment(key);
         if (count == null) return false;
 
-        // 첫 요청이면 TTL 설정
         if (count == 1) {
             redisTemplate.expire(key, ttl);
         }

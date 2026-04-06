@@ -12,7 +12,6 @@ public record NearbyRestaurant(
         double distanceMeters  // 사용자 위치로부터의 거리 (미터)
 ) {
 
-    /** 탐색 반경 기준 도달 가능 여부 확인 */
     public boolean isWithinRadius(double radiusMeters) {
         return distanceMeters <= radiusMeters;
     }

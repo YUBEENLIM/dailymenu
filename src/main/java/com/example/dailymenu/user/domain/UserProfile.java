@@ -40,7 +40,7 @@ public class UserProfile {
         this.lastLoginAt = lastLoginAt;
     }
 
-    public static UserProfile of(
+    public static UserProfile reconstruct(
             Long id,
             String email,
             String nickname,
@@ -56,17 +56,14 @@ public class UserProfile {
         return status == UserStatus.ACTIVE;
     }
 
-    /** 특정 메뉴가 사용자 제한 목록에 포함되어 있는지 확인 */
     public boolean isMenuRestricted(Long menuId) {
         return restrictions.stream().anyMatch(r -> r.isMenuRestricted(menuId));
     }
 
-    /** 특정 식당이 사용자 제한 목록에 포함되어 있는지 확인 */
     public boolean isRestaurantRestricted(Long restaurantId) {
         return restrictions.stream().anyMatch(r -> r.isRestaurantRestricted(restaurantId));
     }
 
-    /** 특정 카테고리가 사용자 제한 목록에 포함되어 있는지 확인 */
     public boolean isCategoryRestricted(String category) {
         return restrictions.stream().anyMatch(r -> r.isCategoryRestricted(category));
     }

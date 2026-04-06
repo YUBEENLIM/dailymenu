@@ -59,7 +59,7 @@ public class RecommendationUseCase {
     private final RecommendationRepositoryPort recommendationRepositoryPort;
     private final RecommendationHistoryRepositoryPort recommendationHistoryRepositoryPort;
     private final MealHistoryRepositoryPort mealHistoryRepositoryPort;
-    private final Executor queryExecutor; // 변경: Spring 관리 스레드 풀 주입
+    private final Executor queryExecutor;
 
     private final RecommendationPolicy policy = new RecommendationPolicy();
 
@@ -81,11 +81,8 @@ public class RecommendationUseCase {
         this.queryExecutor = queryExecutor;
     }
 
-    // ─── 추천 실행 (Happy Path Step 5~9) ───────────────────────────────────
-
     @Transactional
     public RecommendationResult execute(RecommendationCommand command) {
-        // Step 6-a: 상호 독립 데이터 병렬 조회 (Spring 관리 Executor 사용 — JPA Session 획득 보장)
         CompletableFuture<UserProfile> userProfileFuture = CompletableFuture.supplyAsync(
                 () -> loadUserProfile(command.userId()), queryExecutor);
         CompletableFuture<List<MealHistory>> mealHistoryFuture = CompletableFuture.supplyAsync(
@@ -99,11 +96,9 @@ public class RecommendationUseCase {
         List<MealHistory> mealHistories = mealHistoryFuture.join();
         List<Recommendation> recHistories = historyFuture.join();
 
-        // Step 6-b: 위치 기반 후보 식당 조회 (외부 API → PlacePort)
         List<NearbyRestaurant> nearbyRestaurants = placePort.findNearby(
                 command.latitude(), command.longitude());
 
-        // Step 6-c: 카탈로그 조회 (후보 식당의 메뉴·식당 상세)
         List<Long> restaurantIds = nearbyRestaurants.stream()
                 .map(NearbyRestaurant::restaurantId).toList();
         List<Restaurant> restaurants = menuCatalogRepositoryPort.findActiveRestaurantsByIds(restaurantIds);
@@ -111,13 +106,11 @@ public class RecommendationUseCase {
 
         List<MenuCandidate> candidates = buildCandidates(nearbyRestaurants, restaurants, menus);
 
-        // Step 7: RecommendationPolicy 적용 (필터링 → 점수 계산 → 최적 후보 선택)
         // TODO: 후보 없음 시 Fallback Level 2 이상 전환 — 현재는 에러 처리
         ScoredCandidate best = policy
                 .recommend(candidates, userProfile, mealHistories, recHistories)
                 .orElseThrow(() -> new BusinessException(ErrorCode.RECOMMENDATION_NOT_FOUND));
 
-        // Step 8: 추천 이력 저장
         Recommendation recommendation = Recommendation.create(
                 command.userId(),
                 best.candidate().menu().getId(),
@@ -133,11 +126,8 @@ public class RecommendationUseCase {
         log.info("추천 완료 userId={} recommendationId={} menuName={} score={}",
                 command.userId(), saved.getId(), saved.getMenuName(), saved.getRecommendationScore());
 
-        // Step 9: 트랜잭션 커밋 (메서드 종료 시 자동)
         return toResult(saved, best.candidate());
     }
-
-    // ─── 추천 채택 / 거절 ──────────────────────────────────────────────────────
 
     @Transactional
     public StatusUpdateResult acceptRecommendation(Long recommendationId) {
@@ -157,16 +147,12 @@ public class RecommendationUseCase {
         return new StatusUpdateResult(rec.getId(), rec.getStatus());
     }
 
-    // ─── 멱등성 COMPLETED 조회 ───────────────────────────────────────────────
-
     @Transactional(readOnly = true)
     public RecommendationResult getResultById(Long recommendationId) {
         Recommendation rec = recommendationRepositoryPort.findById(recommendationId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.RECOMMENDATION_NOT_FOUND));
         return RecommendationResult.ofCached(rec);
     }
-
-    // ─── private 헬퍼 ────────────────────────────────────────────────────────
 
     private UserProfile loadUserProfile(Long userId) {
         return userProfileRepositoryPort.findById(userId)

@@ -72,98 +72,36 @@
 | Test | JUnit 5, Mockito, Testcontainers, Cucumber |
 | Container | Docker / Docker Compose |
 
-### 아키텍처: 헥사고날 아키텍처
+### 아키텍처: 헥사고날 (Context 우선 패키지 구조)
 
-**헥사고날을 선택한 이유:**
-외부 지도 API가 카카오 → 네이버 → 공공데이터로 확장될 가능성이 있다.
-`PlacePort` 인터페이스(포트)만 정의해두면, 어댑터만 추가해서 교체 가능하다.
-도메인 로직은 외부 API 변경에 전혀 영향받지 않는다.
-
-**패키지 구조: Context 우선(context-first)**
 각 Bounded Context(recommendation, user, mealhistory, catalog, place)가 자체 domain/application/adapter를 소유한다.
 공통 인프라(예외, 분산 락, 멱등성 등)는 shared/ 패키지에 위치한다.
 
-```
-[외부 세계]
-  HTTP 요청 → [Driving Adapter: {context}/adapter/in]
-                        ↓
-              [Application: {context}/application — Facade / UseCase]
-                        ↓
-                [Domain: {context}/domain — 순수 비즈니스 로직]
-                        ↓
-              [Port Interface: {context}/domain/port]
-                        ↓
-  [Driven Adapter: {context}/adapter/out]
-        ↓                   ↓                    ↓
-      MySQL           카카오맵 API             Redis
-```
-
-> 아키텍처 상세 및 패키지 구조: `/docs/architecture.md`
+> 구조 다이어그램 및 패키지 상세: `/docs/architecture.md` §2~3
 
 ### 참고 문서
 
 - ERD / 스키마: `/docs/schema.md`
 - API 명세: `/docs/api-spec.md`
-- 아키텍처 상세: `/docs/architecture.md`
+- 아키텍처 / 동시성 / 장애 대응: `/docs/architecture.md`
 - 코딩 컨벤션: `/docs/conventions.md`
 - 비즈니스 로직: `/docs/business.md`
-- 동시성/장애 대응: `/docs/resilience.md`
 
 ---
 
 ## 4. Coding Convention — 핵심 규율
 
-> 상세 컨벤션: `/docs/conventions.md`
+> 코드 예시 포함 상세 컨벤션: `/docs/conventions.md`
 
-### 절대 규칙 (어기지 마라)
+### 절대 규칙
 
-```java
-// ✅ 생성자 주입만 허용
-@RequiredArgsConstructor
-public class RecommendationService {
-    private final RecommendationRepository repository;
-}
-// ❌ @Autowired 필드 주입 금지
-```
-
-```java
-// ✅ DTO 반환 (record 활용)
-public record RecommendationResponse(Long id, String menuName) {}
-// ❌ Entity 직접 반환 금지
-```
-
-```java
-// ✅ 커스텀 예외
-throw new BusinessException(ErrorCode.RECOMMENDATION_NOT_FOUND);
-// ❌ RuntimeException 직접 사용 금지
-```
-
-```java
-// ✅ Domain은 인프라 무관 POJO
-// ❌ Domain 클래스에 @Entity, @RestController 등 인프라 어노테이션 금지
-```
-
-```java
-// ✅ 메서드는 하나의 책임만, 20라인 넘으면 분리
-public List<Menu> filterByDistance(List<Menu> candidates) { ... }
-public List<Menu> filterByHealth(List<Menu> candidates) { ... }
-// ❌ 하나의 메서드에 필터링, 점수 계산, 저장까지 몰아넣기 금지
-```
-
-```java
-// ✅ Optional은 orElseThrow 사용
-return repository.findById(id)
-    .orElseThrow(() -> new BusinessException(ErrorCode.RECOMMENDATION_NOT_FOUND));
-// ❌ isPresent() + get() 조합 금지 — 구버전 패턴
-if (result.isPresent()) { return result.get(); }
-```
-
-```java
-// ✅ 결과 없으면 빈 컬렉션 반환
-public List<Menu> getMenus() { return List.of(); }
-// ❌ null 반환 금지 — 호출하는 쪽에서 NullPointerException 유발
-public List<Menu> getMenus() { return null; }
-```
+- 생성자 주입만 허용 (`@RequiredArgsConstructor`). `@Autowired` 필드 주입 금지.
+- DTO는 record 사용. Entity 직접 반환 금지.
+- 커스텀 예외 사용 (`BusinessException` + `ErrorCode`). `RuntimeException` 직접 사용 금지.
+- Domain 클래스에 `@Entity`, `@RestController` 등 인프라 어노테이션 금지.
+- 메서드는 하나의 책임만, 20라인 넘으면 분리.
+- Optional은 `orElseThrow` 사용. `isPresent()` + `get()` 조합 금지.
+- 결과 없으면 빈 컬렉션 반환 (`List.of()`). null 반환 금지.
 
 ### AI가 자주 저지르는 실수 — 방지
 
@@ -172,20 +110,10 @@ public List<Menu> getMenus() { return null; }
 - **트랜잭션 내부 호출**: `@Transactional` 메서드를 같은 클래스 내에서 호출하면 AOP가 동작하지 않는다. Facade와 UseCase는 반드시 별도 클래스로 분리해라.
 - **락과 트랜잭션 순서**: 분산 락은 트랜잭션 시작 전에 획득, 트랜잭션 커밋 후에 해제해라.
 - **Redis를 캐시로만 보지 마라**: Redis는 분산 락(LockPort), 멱등성 키, 실패 결과 단기 캐시, Pub/Sub 대기 등 여러 역할을 동시에 수행한다. Redis 관련 코드를 수정할 때는 어떤 역할에 영향을 주는지 먼저 파악해라.
-- **`@Data` 남용 금지**: Entity나 양방향 관계 클래스에 `@Data`를 붙이면 `@ToString`이 포함되어 양방향 관계에서 무한 순환 참조로 `StackOverflowError`가 발생한다. Entity는 `@Getter`만, DTO는 `record`를 사용해라.
-- **`@Transactional(readOnly = true)` 누락 금지**: 조회 전용 메서드에 반드시 `readOnly = true`를 붙여라. 없으면 불필요한 더티 체킹이 발생해 성능이 저하된다.
+- **`@Data` 남용 금지**: Entity는 `@Getter`만, DTO는 `record`를 사용해라.
+- **`@Transactional(readOnly = true)` 누락 금지**: 조회 전용 메서드에 반드시 `readOnly = true`를 붙여라.
 - **예외 삼키기 금지**: 예외를 catch하고 아무것도 하지 않으면 장애 원인을 추적할 수 없다. 반드시 로깅하거나 적절한 예외로 변환해서 던져라.
-```java
-// ❌ 절대 금지
-try { ... } catch (Exception e) { }
-
-// ✅ 로깅 후 변환
-try { ... } catch (Exception e) {
-    log.error("추천 처리 실패 userId={}", userId, e);
-    throw new BusinessException(ErrorCode.RECOMMENDATION_FAILED);
-}
-```
-- **Facade에 비즈니스 로직 금지**: Facade는 락, 멱등성, 요청 orchestration만 담당한다. 비즈니스 로직은 반드시 UseCase에 넣어라. UseCase는 `@Transactional` + 비즈니스 흐름만 담당한다.
+- **Facade에 비즈니스 로직 금지**: Facade는 락, 멱등성, 요청 orchestration만 담당한다. 비즈니스 로직은 반드시 UseCase에 넣어라.
 
 ---
 
@@ -194,11 +122,8 @@ try { ... } catch (Exception e) {
 ### 데이터 정합성 규칙
 
 - DB는 항상 최종 정답(Source of Truth)이다.
-- Redis는 다음 용도로만 사용한다.
-  - 성능 최적화 (캐시)
-  - 동시성 제어 (분산 락, 멱등성 키)
-  - 단기 상태 저장 (TTL 기반)
-- DB 데이터 변경 시 관련 Redis 캐시를 즉시 삭제(invalidate)해라. 캐시를 업데이트하지 말고 삭제해라. 다음 조회 시 DB에서 다시 로딩한다.
+- Redis는 성능 최적화(캐시), 동시성 제어(분산 락, 멱등성 키), 단기 상태 저장(TTL) 용도로만 사용한다.
+- DB 데이터 변경 시 관련 Redis 캐시를 즉시 삭제(invalidate)해라. 캐시를 업데이트하지 말고 삭제해라.
 
 **금지**
 
@@ -210,103 +135,37 @@ try { ... } catch (Exception e) {
 
 각 Context는 자신의 책임 범위만 수행한다.
 
-| Context | 책임 |
-|---|---|
-| 추천 | 추천 정책 적용, 결과 생성 |
-| 카탈로그 | 식당/메뉴 데이터 관리 (무엇이 존재하는가) |
-| 식사 이력 | 사용자가 실제 먹은 기록 관리 |
-| 추천 이력 | 시스템이 추천한 기록 관리 |
-| 사용자 프로필 | 취향, 건강 조건, 혼밥 여부 관리 |
-| 장소/위치 | 위치 기반 후보 필터링 |
-
 **금지**
 
 - 다른 Context의 Repository를 직접 주입받지 마라
 - 다른 Context 내부 로직을 직접 호출하지 마라
 - 외부 API를 Port 없이 직접 호출하지 마라
-- 추천 Context가 식사 이력 DB를 직접 조회하는 구조 금지
-- Repository 직접 주입은 동일 Context 내부에서만 허용. 다른 Context의 Repository는 절대 참조 금지.
 
 **모든 외부 의존성은 반드시 Port를 통해 접근한다.**
-**외부 API 응답은 반드시 내부 표준 모델로 변환한 후 Domain에 전달한다.**
 
-### 동시성 제어 (상세: `/docs/resilience.md`)
+### 동시성 제어
 
-- 분산 락: Redis 기반, TTL 5초
-- 멱등성 키: Redis 저장, TTL 5분
-- Retry: 최대 3회, Exponential Backoff + Jitter
-- Retry 대상 중 낙관적 락 충돌만 해당 (외부 API Retry 기준은 External API Failure Rule 참고)
-- Facade → UseCase 구조로 락과 트랜잭션 분리
+분산 락 TTL 5초, 멱등성 키 TTL 5분, Retry 3회 Exponential Backoff + Jitter. Facade → UseCase 구조로 락과 트랜잭션 분리.
+> 상세: `/docs/architecture.md` §9~10
 
-### 장애 대응 (상세: `/docs/resilience.md`)
+### 장애 대응
 
-- Circuit Breaker: Resilience4j, 외부 API 종류별 다른 설정
-- Fallback 4단계: 장애가 나더라도 추천 경험 자체가 완전히 끊기지 않는 것이 핵심
-  - Level 1: 최근 성공 결과나 캐시 기반 추천 반환
-  - Level 2: 일부 조건을 완화한 추천 제공
-  - Level 3: 사전 적재된 인기 메뉴 / 대표 메뉴 / 시간대별 리스트 기반 비개인화 추천
-  - Level 4: 추천 생성 중단, 메뉴 카테고리 탐색 / 재시도 / 즐겨찾기 등 최소 선택 기능 제공
-- Bulkhead: 핵심 기능과 추천 기능 스레드 풀 분리
-
-### External API Failure Rule
-
-다음 경우를 외부 API 실패로 간주한다.
-
-- Connection Timeout (500ms 초과)
-- Read Timeout (1.5초 초과)
-- 5xx 응답
-- 응답 파싱 실패
-- SLA 초과 (외부 API 전체 예산 2초 초과)
-
-정책:
-
-- Timeout / 네트워크 오류 / 5xx만 Retry 허용
-- 4xx는 재시도 금지
-- 실패는 Circuit Breaker로 전달 → Fallback 순서대로 처리
+Circuit Breaker(Resilience4j) + Fallback 4단계. 장애 시에도 추천 경험이 완전히 끊기지 않도록 단계적 대응.
+> 상세: `/docs/architecture.md` §11~12
 
 ### 성능 목표
 
-- p99 응답 시간: 5초 이내
-- p99 시간 예산: 내부 계산 300ms + DB 1초 + 외부 API 2초 + 버퍼 1.5초
-- 외부 API: Connection Timeout 500ms + Read Timeout 1.5초
-- 피크 TPS: 150 (점심/저녁 시간대 기준)
-- **평균 TPS가 아닌 피크 TPS 기준으로 설계해라. 평균으로 설계하면 점심/저녁 피크에 반드시 장애가 발생한다.**
+p99 응답 5초 이내. 외부 API: Connection Timeout 500ms + Read Timeout 1.5초. 피크 TPS 150 기준 설계.
+> 상세: `/docs/architecture.md` §8
+
+### Request Flow
+
+Controller → Facade(멱등성 확인 → 락 획득) → UseCase(@Transactional) → Domain(정책 적용) → 커밋 → 락 해제 → 응답
+> 상세: `/docs/architecture.md` §5
 
 ---
 
-## 6. Request Flow (Critical)
-
-추천 요청은 반드시 다음 흐름을 따른다.
-
-```
-1.  Controller       → Facade 진입 (요청 수신, DTO 변환)
-2.  Facade           → Idempotency Key 검증 (Redis)
-3.  Facade           → 분산 락 획득 (Redis, TTL 5초)
-4.  Facade           → UseCase 호출
-5.  UseCase          → 트랜잭션 시작 (@Transactional)
-6.  UseCase          → 사용자 프로필 / 식사 이력 / 추천 이력 / 위치 / 카탈로그 조회
-                       (앞 3개는 서로 의존 없으므로 병렬 조회 가능)
-                       // 병렬 구현 방식: CompletableFuture.allOf() 사용, ThreadPoolTaskExecutor 빈 별도 설정
-7.  Domain           → 추천 정책 적용 (RecommendationPolicy)
-8.  UseCase          → RecommendationHistory 저장
-9.  UseCase          → 트랜잭션 커밋
-10. Facade           → 락 해제 (반드시 커밋 이후)
-11. Controller       → 응답 반환
-```
-
-**주의사항**
-
-- 외부 API 호출은 반드시 타임아웃 + Circuit Breaker 적용
-- 병렬 조회는 Thread Pool 사용 (Bulkhead 고려)
-- 락은 트랜잭션 시작 전에 획득하고, 커밋 이후에 해제한다
-- Facade에는 `@Transactional` 금지 — 락과 트랜잭션 경계를 분리해야 한다
-- 병렬 처리 기준:
-  - 서로 의존성이 없는 조회만 병렬 처리
-  - DB connection pool 고려 (과도한 병렬 금지)
-
----
-
-## 7. Session Tracking
+## 6. Session Tracking
 
 - 작업 기록 파일: `docs/session-progress.md`
 - 사용자가 작업 저장을 요청하면 (예: "작업 내용 저장해줘", "오늘 한 거 정리해줘") → `docs/session-progress.md`에 날짜별로 기록

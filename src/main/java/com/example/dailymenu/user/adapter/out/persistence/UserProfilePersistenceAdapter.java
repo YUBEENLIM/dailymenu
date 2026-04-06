@@ -34,18 +34,18 @@ public class UserProfilePersistenceAdapter implements UserProfileRepositoryPort 
     private UserProfile toDomain(UserJpaEntity entity) {
         UserPreferences preferences = entity.getPreferences() != null
                 ? toPreferences(entity.getPreferences())
-                : UserPreferences.of(false, null, null, HealthFilter.NONE, List.of());
+                : UserPreferences.reconstruct(false, null, null, HealthFilter.NONE, List.of());
 
         List<UserRestriction> restrictions = entity.getRestrictions().stream()
                 .map(this::toRestriction).toList();
 
-        return UserProfile.of(
+        return UserProfile.reconstruct(
                 entity.getId(), entity.getEmail(), entity.getNickname(),
                 entity.getStatus(), preferences, restrictions, entity.getLastLoginAt());
     }
 
     private UserPreferences toPreferences(UserPreferencesJpaEntity entity) {
-        return UserPreferences.of(
+        return UserPreferences.reconstruct(
                 entity.isPreferSolo(), entity.getMinPrice(), entity.getMaxPrice(),
                 entity.getHealthFilter() != null ? entity.getHealthFilter() : HealthFilter.NONE,
                 parseCategories(entity.getPreferredCategories()));

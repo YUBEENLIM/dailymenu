@@ -53,12 +53,12 @@ public class CatalogPersistenceAdapter implements MenuCatalogRepositoryPort {
     }
 
     private Menu menuToDomain(MenuJpaEntity e) {
-        return Menu.of(e.getId(), e.getRestaurantId(), e.getName(),
+        return Menu.reconstruct(e.getId(), e.getRestaurantId(), e.getName(),
                 e.getPrice(), e.getCategory(), e.getCalorie(), e.isActive());
     }
 
     private Restaurant restaurantToDomain(RestaurantJpaEntity e) {
-        return Restaurant.of(e.getId(), e.getName(), e.getCategory(), e.getAddress(),
+        return Restaurant.reconstruct(e.getId(), e.getName(), e.getCategory(), e.getAddress(),
                 e.getLatitude(), e.getLongitude(), e.isAllowSolo(),
                 Map.of(), // TODO: business_hours JSON → Map 변환
                 e.getExternalId(), e.getExternalSource(), e.getLastSyncedAt(), e.isActive());

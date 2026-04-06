@@ -73,6 +73,7 @@ Redis 기반 TTL 카운터로 구현한다. 초과 시 R005(429) 반환.
 | GET /restaurants | 30회 | - | 탐색은 자유롭게, 크롤링 방지 수준 |
 
 > Redis key 구조: `rate_limit:{userId}:{api_name}` (인증) / `rate_limit:{ip}:{api_name}` (미인증) / TTL: 60초
+> 기술 구현 상세 (Redis key 구조, TTL): `/docs/architecture.md` §15
 
 ---
 

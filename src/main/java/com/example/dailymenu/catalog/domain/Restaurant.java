@@ -55,7 +55,7 @@ public class Restaurant {
         this.active = active;
     }
 
-    public static Restaurant of(
+    public static Restaurant reconstruct(
             Long id,
             String name,
             MenuCategory category,

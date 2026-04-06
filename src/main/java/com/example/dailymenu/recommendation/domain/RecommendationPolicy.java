@@ -42,8 +42,6 @@ public class RecommendationPolicy {
         this.random = random;
     }
 
-    // ─── 진입점 ──────────────────────────────────────────────────────────────
-
     public Optional<ScoredCandidate> recommend(
             List<MenuCandidate> candidates,
             UserProfile userProfile,
@@ -60,8 +58,6 @@ public class RecommendationPolicy {
         return selectBest(scored);
     }
 
-    // ─── 필터 체인 ───────────────────────────────────────────────────────────
-
     private List<MenuCandidate> applyFilters(
             List<MenuCandidate> candidates,
             UserProfile userProfile,
@@ -76,8 +72,6 @@ public class RecommendationPolicy {
         result = filterByPriceRange(result, userProfile);
         return result;
     }
-
-    // ─── 개별 필터 (패키지 접근 — 단위 테스트 가능) ──────────────────────────
 
     /** 1. 위치 기반 — 1000m 초과 식당 제거 */
     List<MenuCandidate> filterByDistance(List<MenuCandidate> candidates) {
@@ -153,8 +147,6 @@ public class RecommendationPolicy {
                 .toList();
     }
 
-    // ─── 점수 계산 (business.md §4 기준) ─────────────────────────────────────
-
     private List<ScoredCandidate> scoreAndRank(
             List<MenuCandidate> candidates,
             UserProfile userProfile,
@@ -227,8 +219,6 @@ public class RecommendationPolicy {
         return 10;
     }
 
-    // ─── 최적 후보 선택 (90% 활용 + 10% 탐색) ─────────────────────────────────
-
     private Optional<ScoredCandidate> selectBest(List<ScoredCandidate> scored) {
         if (scored.isEmpty()) return Optional.empty();
         if (scored.size() > 1 && random.nextDouble() < EXPLORATION_RATIO) {
@@ -239,8 +229,6 @@ public class RecommendationPolicy {
         }
         return Optional.of(scored.get(0)); // 활용: 최고 점수 후보
     }
-
-    // ─── 내부 헬퍼 ───────────────────────────────────────────────────────────
 
     private Set<Long> resolveExcludedMenuIds(List<MealHistory> mealHistories) {
         LocalDate today = LocalDate.now();

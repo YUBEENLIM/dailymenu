@@ -107,7 +107,6 @@ public class RecommendationJpaEntity {
         this.rejectReason = rejectReason;
         this.recommendationScore = recommendationScore;
         this.fallbackLevel = fallbackLevel;
-        // createdAt / updatedAt 은 @CreationTimestamp / @UpdateTimestamp 가 관리 — 생성자에서 제외
     }
 
     /**

@@ -12,7 +12,23 @@
       "Bash(./gradlew bootRun)",
       "Bash(echo \"PID=$!\")",
       "Bash(docker exec:*)",
-      "Bash(cat /c/intelliJCommunityProjects/dailymenu/src/main/resources/application*.yml)"
+      "Bash(cat /c/intelliJCommunityProjects/dailymenu/src/main/resources/application*.yml)",
+      "Bash(grep -r \"hikari\\\\|datasource\\\\|connection\" /c/intelliJCommunityProjects/dailymenu/src/main/resources/application*.yml)",
+      "Bash(xargs grep:*)",
+      "Bash(grep:*)"
+    ]
+  },
+  "hooks": {
+    "SessionEnd": [
+      {
+        "hooks": [
+          {
+            "type": "prompt",
+            "prompt": "세션 종료 전 작업 기록을 저장해줘. 메모리 디렉토리에 session_progress.md 파일이 이미 있으면 읽어서 기존 내용을 유지하면서 업데이트해. 형식: 1) 완료된 작업 (날짜별 누적) 2) 미완료/진행중 작업 3) 다음 세션에서 이어할 내용. project 타입 메모리로 저장해.",
+            "timeout": 60
+          }
+        ]
+      }
     ]
   }
 }

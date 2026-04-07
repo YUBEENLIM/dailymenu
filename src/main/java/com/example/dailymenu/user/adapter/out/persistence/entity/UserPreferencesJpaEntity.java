@@ -55,4 +55,19 @@ public class UserPreferencesJpaEntity {
     @UpdateTimestamp
     @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
+
+    public void update(boolean preferSolo, Integer minPrice, Integer maxPrice, String preferredCategories) {
+        this.preferSolo = preferSolo;
+        this.minPrice = minPrice;
+        this.maxPrice = maxPrice;
+        this.preferredCategories = preferredCategories;
+    }
+
+    public static UserPreferencesJpaEntity createDefault(UserJpaEntity user) {
+        UserPreferencesJpaEntity entity = new UserPreferencesJpaEntity();
+        entity.user = user;
+        entity.preferSolo = false;
+        entity.healthFilter = HealthFilter.NONE;
+        return entity;
+    }
 }

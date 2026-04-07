@@ -50,4 +50,12 @@ public class UserRestrictionJpaEntity {
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
+
+    public static UserRestrictionJpaEntity ofCategory(UserJpaEntity user, String categoryValue) {
+        UserRestrictionJpaEntity entity = new UserRestrictionJpaEntity();
+        entity.user = user;
+        entity.type = RestrictionType.CATEGORY;
+        entity.targetValue = categoryValue;
+        return entity;
+    }
 }

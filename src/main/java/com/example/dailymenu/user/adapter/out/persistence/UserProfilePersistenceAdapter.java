@@ -1,5 +1,7 @@
 package com.example.dailymenu.user.adapter.out.persistence;
 
+import com.example.dailymenu.shared.domain.exception.BusinessException;
+import com.example.dailymenu.shared.domain.exception.ErrorCode;
 import com.example.dailymenu.user.adapter.out.persistence.entity.UserJpaEntity;
 import com.example.dailymenu.user.adapter.out.persistence.entity.UserPreferencesJpaEntity;
 import com.example.dailymenu.user.adapter.out.persistence.entity.UserRestrictionJpaEntity;
@@ -29,6 +31,44 @@ public class UserProfilePersistenceAdapter implements UserProfileRepositoryPort 
     @Transactional(readOnly = true)
     public Optional<UserProfile> findById(Long userId) {
         return userJpaRepository.findWithProfileById(userId).map(this::toDomain);
+    }
+
+    @Override
+    @Transactional
+    public void updateNickname(Long userId, String nickname) {
+        UserJpaEntity user = userJpaRepository.findById(userId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+        user.updateNickname(nickname);
+    }
+
+    @Override
+    @Transactional
+    public void updatePreferences(Long userId, boolean preferSolo, Integer minPrice, Integer maxPrice,
+                                  List<MenuCategory> preferredCategories) {
+        UserJpaEntity user = userJpaRepository.findWithProfileById(userId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+
+        String categoriesJson = preferredCategories.isEmpty() ? "[]"
+                : "[" + String.join(",", preferredCategories.stream().map(c -> "\"" + c.name() + "\"").toList()) + "]";
+
+        if (user.getPreferences() != null) {
+            user.getPreferences().update(preferSolo, minPrice, maxPrice, categoriesJson);
+        } else {
+            UserPreferencesJpaEntity prefs = UserPreferencesJpaEntity.createDefault(user);
+            prefs.update(preferSolo, minPrice, maxPrice, categoriesJson);
+            userJpaRepository.save(user);
+        }
+    }
+
+    @Override
+    @Transactional
+    public void updateCategoryRestrictions(Long userId, List<String> categories) {
+        UserJpaEntity user = userJpaRepository.findWithProfileById(userId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+
+        user.getRestrictions().removeIf(r -> r.getType() == RestrictionType.CATEGORY);
+        categories.forEach(cat ->
+                user.getRestrictions().add(UserRestrictionJpaEntity.ofCategory(user, cat)));
     }
 
     private UserProfile toDomain(UserJpaEntity entity) {

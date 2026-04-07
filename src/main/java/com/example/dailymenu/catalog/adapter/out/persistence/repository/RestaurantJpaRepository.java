@@ -15,4 +15,8 @@ public interface RestaurantJpaRepository extends JpaRepository<RestaurantJpaEnti
      */
     @Query("SELECT r FROM RestaurantJpaEntity r WHERE r.id IN :ids AND r.active = true AND r.deletedAt IS NULL")
     List<RestaurantJpaEntity> findActiveByIds(@Param("ids") List<Long> ids);
+
+    /** 카카오 등 외부 place ID(external_id) 기준으로 활성 식당 일괄 조회 */
+    @Query("SELECT r FROM RestaurantJpaEntity r WHERE r.externalId IN :externalIds AND r.active = true AND r.deletedAt IS NULL")
+    List<RestaurantJpaEntity> findActiveByExternalIds(@Param("externalIds") List<String> externalIds);
 }

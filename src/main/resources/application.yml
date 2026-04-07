@@ -19,3 +19,16 @@ jwt:
   secret: ZGFpbHltZW51LWp3dC1zZWNyZXQta2V5LWZvci1kZXZlbG9wbWVudC1vbmx5LTI1Ng== # 개발용. 운영은 환경변수로 주입.
   access-token-expiration: 3600    # 1시간 (초)
   refresh-token-expiration: 604800 # 7일 (초)
+
+# 카카오맵 API (architecture.md §8: connection 500ms, read 1500ms)
+kakao:
+  place:
+    api-key: ${KAKAO_REST_API_KEY:your-kakao-rest-api-key}  # 환경변수로 주입. 로컬은 .env 또는 IDE 설정 사용.
+    base-url: https://dapi.kakao.com
+    connection-timeout: 500   # ms
+    read-timeout: 1500        # ms
+    default-radius: 500       # 미터 (기본 탐색 반경)
+  oauth:
+    client-id: ${KAKAO_REST_API_KEY:your-kakao-rest-api-key}
+    client-secret: ${KAKAO_ADMIN_KEY:your-kakao-admin-key}
+    redirect-uri: http://localhost:8080/auth/kakao/callback

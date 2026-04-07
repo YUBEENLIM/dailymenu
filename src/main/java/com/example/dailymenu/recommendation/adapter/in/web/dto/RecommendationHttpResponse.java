@@ -31,15 +31,19 @@ public record RecommendationHttpResponse(
     ) {}
 
     public static RecommendationHttpResponse from(RecommendationResult result) {
-        return new RecommendationHttpResponse(
-                result.recommendationId(),
-                new MenuDto(
+        // 메뉴 없는 식당 Fallback 추천 시 menu = null
+        MenuDto menu = result.menuId() != null
+                ? new MenuDto(
                         result.menuId(),
                         result.menuName(),
                         result.menuCategory() != null ? result.menuCategory().name() : null,
                         result.price(),
-                        result.calorie()
-                ),
+                        result.calorie())
+                : null;
+
+        return new RecommendationHttpResponse(
+                result.recommendationId(),
+                menu,
                 new RestaurantDto(
                         result.restaurantId(),
                         result.restaurantName(),

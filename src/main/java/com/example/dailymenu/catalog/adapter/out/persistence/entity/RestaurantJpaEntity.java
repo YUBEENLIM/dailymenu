@@ -82,4 +82,28 @@ public class RestaurantJpaEntity {
     // 소프트 딜리트 — null: 운영 중, 값 있음: 폐업/삭제
     @Column(name = "deleted_at")
     private LocalDateTime deletedAt;
+
+    /** 카카오 결과 기반 신규 식당 생성 — 자동 등록용 */
+    public static RestaurantJpaEntity createFromExternal(
+            String name,
+            MenuCategory category,
+            String address,
+            BigDecimal latitude,
+            BigDecimal longitude,
+            String externalId,
+            ExternalSource externalSource
+    ) {
+        RestaurantJpaEntity entity = new RestaurantJpaEntity();
+        entity.name = name;
+        entity.category = category;
+        entity.address = address;
+        entity.latitude = latitude;
+        entity.longitude = longitude;
+        entity.allowSolo = true;  // 기본값 — 추후 수동 보정
+        entity.externalId = externalId;
+        entity.externalSource = externalSource;
+        entity.lastSyncedAt = LocalDateTime.now();
+        entity.active = true;
+        return entity;
+    }
 }

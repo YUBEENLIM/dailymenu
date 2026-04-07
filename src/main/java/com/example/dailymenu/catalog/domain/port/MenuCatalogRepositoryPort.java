@@ -19,7 +19,13 @@ public interface MenuCatalogRepositoryPort {
 
     List<Restaurant> findActiveRestaurantsByIds(List<Long> restaurantIds);
 
+    /** 카카오 등 외부 place ID(external_id) 기준으로 활성 식당 일괄 조회 */
+    List<Restaurant> findActiveRestaurantsByExternalIds(List<String> externalIds);
+
     List<Menu> findActiveMenusByRestaurantIds(List<Long> restaurantIds);
+
+    /** 카카오 결과 중 DB 미존재 식당 일괄 저장. 저장된 Restaurant 목록 반환. */
+    List<Restaurant> saveNewRestaurants(List<Restaurant> restaurants);
 
     /** 식사 기록 시 메뉴 이름 조회용 단건 조회 */
     Optional<Menu> findMenuById(Long menuId);

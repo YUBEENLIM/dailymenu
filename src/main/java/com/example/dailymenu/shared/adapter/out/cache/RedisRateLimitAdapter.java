@@ -22,10 +22,11 @@ import java.util.Map;
 @Slf4j
 public class RedisRateLimitAdapter implements RateLimitPort {
 
+    // TODO: 운영 배포 시 원래 값으로 복원 (recommendations: 분당 5, 시간당 20)
     private static final Map<String, int[]> LIMITS = Map.of(
-            "recommendations", new int[]{10, 30},   // 분당 5회, 시간당 20회
-            "meal-histories", new int[]{10, 0},     // 분당 10회, 시간당 제한 없음
-            "restaurants", new int[]{30, 0}          // 분당 30회, 시간당 제한 없음
+            "recommendations", new int[]{100, 500},  // 로컬 테스트용 완화
+            "meal-histories", new int[]{100, 0},
+            "restaurants", new int[]{100, 0}
     );
 
     private final StringRedisTemplate redisTemplate;

@@ -1,9 +1,12 @@
 package com.example.dailymenu;
 
+import com.example.dailymenu.place.adapter.out.kakao.KakaoPlaceProperties;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 
 @SpringBootApplication
+@EnableConfigurationProperties({KakaoPlaceProperties.class, com.example.dailymenu.user.adapter.out.auth.kakao.KakaoOAuthProperties.class})
 public class DailymenuApplication {
 
 	public static void main(String[] args) {

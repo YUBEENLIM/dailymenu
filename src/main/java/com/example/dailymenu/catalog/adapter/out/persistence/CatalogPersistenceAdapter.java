@@ -4,6 +4,7 @@ import com.example.dailymenu.catalog.adapter.out.persistence.entity.MenuJpaEntit
 import com.example.dailymenu.catalog.adapter.out.persistence.entity.RestaurantJpaEntity;
 import com.example.dailymenu.catalog.adapter.out.persistence.repository.MenuJpaRepository;
 import com.example.dailymenu.catalog.adapter.out.persistence.repository.RestaurantJpaRepository;
+import com.example.dailymenu.catalog.domain.ExternalSource;
 import com.example.dailymenu.catalog.domain.port.MenuCatalogRepositoryPort;
 import com.example.dailymenu.catalog.domain.Menu;
 import com.example.dailymenu.catalog.domain.Restaurant;
@@ -11,6 +12,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -31,9 +33,33 @@ public class CatalogPersistenceAdapter implements MenuCatalogRepositoryPort {
 
     @Override
     @Transactional(readOnly = true)
+    public List<Restaurant> findActiveRestaurantsByExternalIds(List<String> externalIds) {
+        return restaurantJpaRepository.findActiveByExternalIds(externalIds).stream()
+                .map(this::restaurantToDomain).toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public List<Menu> findActiveMenusByRestaurantIds(List<Long> restaurantIds) {
         return menuJpaRepository.findActiveMenusByRestaurantIds(restaurantIds).stream()
                 .map(this::menuToDomain).toList();
+    }
+
+    @Override
+    @Transactional
+    public List<Restaurant> saveNewRestaurants(List<Restaurant> restaurants) {
+        List<RestaurantJpaEntity> entities = restaurants.stream()
+                .map(r -> RestaurantJpaEntity.createFromExternal(
+                        r.getName(),
+                        r.getCategory(),
+                        r.getAddress(),
+                        r.getLatitude(),
+                        r.getLongitude(),
+                        r.getExternalId(),
+                        r.getExternalSource()))
+                .toList();
+        return restaurantJpaRepository.saveAll(entities).stream()
+                .map(this::restaurantToDomain).toList();
     }
 
     @Override

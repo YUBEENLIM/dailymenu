@@ -43,9 +43,9 @@ public class RecommendationHappyPathSteps {
     @Given("테스트 식당과 메뉴 데이터가 등록되어 있다")
     public void 테스트_데이터_등록() {
         jdbcTemplate.update("""
-                INSERT INTO restaurants (id, name, category, latitude, longitude, allow_solo, is_active, created_at, updated_at)
-                VALUES (1, '테스트 한식당', 'KOREAN', 37.5665, 126.9780, true, true, NOW(), NOW())
-                ON DUPLICATE KEY UPDATE name = '테스트 한식당'
+                INSERT INTO restaurants (id, name, category, latitude, longitude, allow_solo, external_id, external_source, is_active, created_at, updated_at)
+                VALUES (1, '테스트 한식당', 'KOREAN', 37.5665, 126.9780, true, '1', 'KAKAO', true, NOW(), NOW())
+                ON DUPLICATE KEY UPDATE name = '테스트 한식당', external_id = '1', external_source = 'KAKAO'
                 """);
         jdbcTemplate.update("""
                 INSERT INTO menus (id, restaurant_id, name, price, category, is_active, created_at, updated_at)

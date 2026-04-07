@@ -1,5 +1,6 @@
 package com.example.dailymenu.recommendation.domain;
 
+import com.example.dailymenu.catalog.domain.Restaurant;
 import com.example.dailymenu.mealhistory.domain.MealHistory;
 import com.example.dailymenu.catalog.domain.MenuCategory;
 import com.example.dailymenu.user.domain.UserProfile;
@@ -9,6 +10,7 @@ import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Random;
 import java.util.Set;
@@ -228,6 +230,31 @@ public class RecommendationPolicy {
             return Optional.of(scored.get(from + random.nextInt(Math.max(1, to - from))));
         }
         return Optional.of(scored.get(0)); // 활용: 최고 점수 후보
+    }
+
+    /**
+     * 메뉴 없는 식당 Fallback 추천 — 거리(30) + 카테고리(30) = 60점 만점.
+     * 메뉴 있는 식당에서 추천 결과가 없을 때만 UseCase 에서 호출한다.
+     */
+    public Optional<ScoredRestaurant> recommendRestaurantOnly(
+            List<Restaurant> restaurants,
+            Map<Long, Double> distanceMap,
+            UserProfile userProfile
+    ) {
+        if (restaurants.isEmpty()) return Optional.empty();
+
+        List<ScoredRestaurant> scored = restaurants.stream()
+                .map(r -> {
+                    double distance = distanceMap.getOrDefault(r.getId(), 0.0);
+                    int score = distanceScore(distance) + categoryScore(r.getCategory(), userProfile);
+                    return new ScoredRestaurant(r, distance, BigDecimal.valueOf(score));
+                })
+                .sorted(Comparator.<ScoredRestaurant, BigDecimal>comparing(ScoredRestaurant::score)
+                        .reversed()
+                        .thenComparingDouble(ScoredRestaurant::distanceMeters))
+                .toList();
+
+        return Optional.of(scored.get(0));
     }
 
     private Set<Long> resolveExcludedMenuIds(List<MealHistory> mealHistories) {

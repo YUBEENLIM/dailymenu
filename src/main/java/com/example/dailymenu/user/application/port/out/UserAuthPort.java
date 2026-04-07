@@ -19,5 +19,11 @@ public interface UserAuthPort {
 
     Optional<AuthUserInfo> findByEmail(String email);
 
+    /** 카카오 등 소셜 로그인 사용자 조회 (oauth_provider + oauth_id) */
+    Optional<AuthUserInfo> findByOAuth(String oauthProvider, String oauthId);
+
+    /** 소셜 로그인 사용자 신규 가입 */
+    Long saveOAuthUser(String oauthProvider, String oauthId, String nickname);
+
     void updateLastLogin(Long userId);
 }

@@ -47,6 +47,27 @@ public class UserAuthPersistenceAdapter implements UserAuthPort {
     }
 
     @Override
+    @Transactional(readOnly = true)
+    public Optional<AuthUserInfo> findByOAuth(String oauthProvider, String oauthId) {
+        return userJpaRepository.findByOauthProviderAndOauthId(oauthProvider, oauthId)
+                .map(e -> new AuthUserInfo(e.getId(), e.getEmail(), e.getPasswordHash(), e.getStatus()));
+    }
+
+    @Override
+    @Transactional
+    public Long saveOAuthUser(String oauthProvider, String oauthId, String nickname) {
+        UserJpaEntity entity = UserJpaEntity.builder()
+                .email(null)
+                .passwordHash(null)
+                .nickname(nickname)
+                .oauthProvider(oauthProvider)
+                .oauthId(oauthId)
+                .status(UserStatus.ACTIVE)
+                .build();
+        return userJpaRepository.save(entity).getId();
+    }
+
+    @Override
     @Transactional
     public void updateLastLogin(Long userId) {
         userJpaRepository.findById(userId).ifPresent(UserJpaEntity::updateLastLogin);

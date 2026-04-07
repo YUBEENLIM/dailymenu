@@ -1,5 +1,7 @@
 package com.example.dailymenu.user.application;
 
+import com.example.dailymenu.user.application.port.out.OAuthPort;
+import com.example.dailymenu.user.application.port.out.OAuthPort.OAuthUserInfo;
 import com.example.dailymenu.user.application.port.out.PasswordEncoderPort;
 import com.example.dailymenu.user.application.port.out.RefreshTokenPort;
 import com.example.dailymenu.user.application.port.out.TokenPort;
@@ -14,7 +16,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * 인증 UseCase — JWT 발급·갱신·무효화.
+ * 인증 UseCase — 일반 로그인 + 카카오 OAuth 로그인 + JWT 발급·갱신·무효화.
  * Access Token 1시간, Refresh Token 7일 (api-spec.md §2).
  * Refresh Token 은 Redis 에 저장, 로그아웃 시 삭제로 무효화.
  */
@@ -29,6 +31,7 @@ public class AuthUseCase {
     private final PasswordEncoderPort passwordEncoderPort;
     private final TokenPort tokenPort;
     private final RefreshTokenPort refreshTokenPort;
+    private final OAuthPort oAuthPort;
 
     public record LoginResult(String accessToken, String refreshToken, long expiresIn) {}
 
@@ -60,14 +63,23 @@ public class AuthUseCase {
             throw new BusinessException(ErrorCode.UNAUTHORIZED);
         }
 
-        String accessToken = tokenPort.generateAccessToken(user.id());
-        String refreshToken = tokenPort.generateRefreshToken(user.id());
-
-        refreshTokenPort.save(user.id(), refreshToken, REFRESH_TOKEN_TTL_SECONDS);
-        userAuthPort.updateLastLogin(user.id());
-
         log.info("로그인 성공 userId={}", user.id());
-        return new LoginResult(accessToken, refreshToken, tokenPort.getAccessTokenExpirationSeconds());
+        return issueTokens(user.id());
+    }
+
+    @Transactional
+    public LoginResult kakaoLogin(String authorizationCode) {
+        OAuthUserInfo oauthUser = oAuthPort.authenticate(authorizationCode);
+
+        Long userId = userAuthPort.findByOAuth(oauthUser.provider(), oauthUser.oauthId())
+                .map(AuthUserInfo::id)
+                .orElseGet(() -> {
+                    String nickname = "사용자_" + oauthUser.oauthId().substring(0, Math.min(5, oauthUser.oauthId().length()));
+                    return userAuthPort.saveOAuthUser(oauthUser.provider(), oauthUser.oauthId(), nickname);
+                });
+
+        log.info("카카오 로그인 성공 userId={} oauthId={}", userId, oauthUser.oauthId());
+        return issueTokens(userId);
     }
 
     public RefreshResult refresh(String refreshToken) {
@@ -92,5 +104,14 @@ public class AuthUseCase {
     public void logout(Long userId) {
         refreshTokenPort.invalidate(userId);
         log.info("로그아웃 완료 userId={}", userId);
+    }
+
+    /** JWT 발급 + Refresh Token 저장 + 마지막 로그인 갱신 — 일반/카카오 공통 */
+    private LoginResult issueTokens(Long userId) {
+        String accessToken = tokenPort.generateAccessToken(userId);
+        String refreshToken = tokenPort.generateRefreshToken(userId);
+        refreshTokenPort.save(userId, refreshToken, REFRESH_TOKEN_TTL_SECONDS);
+        userAuthPort.updateLastLogin(userId);
+        return new LoginResult(accessToken, refreshToken, tokenPort.getAccessTokenExpirationSeconds());
     }
 }

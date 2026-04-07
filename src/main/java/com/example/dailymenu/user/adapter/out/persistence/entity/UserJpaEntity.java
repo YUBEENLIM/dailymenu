@@ -29,7 +29,7 @@ public class UserJpaEntity {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "email", nullable = false, unique = true)
+    @Column(name = "email", unique = true)
     private String email;
 
     @Column(name = "nickname", nullable = false, length = 100)
@@ -78,6 +78,10 @@ public class UserJpaEntity {
 
     public void updateLastLogin() {
         this.lastLoginAt = LocalDateTime.now();
+    }
+
+    public void updateNickname(String nickname) {
+        this.nickname = nickname;
     }
 
     // 1:1 — UserProfile 조회 시 반드시 Fetch Join 사용

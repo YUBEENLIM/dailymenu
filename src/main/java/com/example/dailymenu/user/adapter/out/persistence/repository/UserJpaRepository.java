@@ -14,6 +14,8 @@ public interface UserJpaRepository extends JpaRepository<UserJpaEntity, Long> {
      */
     Optional<UserJpaEntity> findByEmail(String email);
 
+    Optional<UserJpaEntity> findByOauthProviderAndOauthId(String oauthProvider, String oauthId);
+
     /**
      * UserProfile 구성을 위한 Fetch Join 조회.
      * preferences(1:1), restrictions(1:N) 을 단일 쿼리로 로딩 — N+1 방지.

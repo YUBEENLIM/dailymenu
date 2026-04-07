@@ -6,11 +6,11 @@
     <title>Daily Menu</title>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
-        body { font-family: sans-serif; background: #f5f5f5; color: #222; min-height: 100vh; }
+        body { font-family: sans-serif; background: #f5f5f5; color: #222; min-height: 100vh; padding-bottom: 70px; }
         header { background: #fff; border-bottom: 1px solid #e0e0e0; padding: 16px 24px; display: flex; align-items: center; justify-content: space-between; }
         header h1 { font-size: 18px; font-weight: 600; }
         #user-info { font-size: 13px; color: #666; }
-        main { max-width: 480px; margin: 32px auto; padding: 0 16px; display: flex; flex-direction: column; gap: 16px; }
+        main { max-width: 480px; margin: 24px auto; padding: 0 16px; display: flex; flex-direction: column; gap: 16px; }
         .card { background: #fff; border-radius: 12px; border: 0.5px solid #ddd; padding: 20px; }
         .card h2 { font-size: 15px; font-weight: 600; margin-bottom: 14px; color: #333; }
         label { display: block; font-size: 13px; color: #555; margin-bottom: 4px; margin-top: 10px; }
@@ -21,6 +21,8 @@
         .btn-primary { background: #5b7fff; color: #fff; }
         .btn-success { background: #22c55e; color: #fff; }
         .btn-danger { background: #ef4444; color: #fff; }
+        .btn-outline { background: #fff; color: #ef4444; border: 1px solid #ef4444; }
+        .btn-kakao { background: #FEE500; color: #191919; }
         .btn-link { background: none; color: #5b7fff; border: none; font-size: 13px; margin-top: 16px; cursor: pointer; text-decoration: underline; }
         .alert { padding: 10px 14px; border-radius: 8px; font-size: 13px; margin-top: 10px; }
         .alert-success { background: #dcfce7; color: #166534; }
@@ -33,6 +35,30 @@
         .btn-row .btn { margin-top: 0; }
         .screen { display: none; }
         .screen.active { display: flex; flex-direction: column; gap: 16px; }
+
+        /* 하단 네비게이션 */
+        .bottom-nav { display: none; position: fixed; bottom: 0; left: 0; right: 0; background: #fff; border-top: 1px solid #e0e0e0; height: 60px; justify-content: center; align-items: center; gap: 0; z-index: 100; }
+        .bottom-nav.visible { display: flex; }
+        .nav-item { flex: 1; max-width: 240px; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; cursor: pointer; color: #999; font-size: 11px; font-weight: 500; transition: color 0.15s; }
+        .nav-item.active { color: #5b7fff; }
+        .nav-item svg { width: 22px; height: 22px; margin-bottom: 2px; }
+
+        /* 칩 (카테고리 선택) */
+        .chip-group { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+        .chip { padding: 6px 12px; border-radius: 16px; border: 1px solid #ccc; font-size: 12px; cursor: pointer; background: #fff; transition: all 0.15s; }
+        .chip.selected { background: #5b7fff; color: #fff; border-color: #5b7fff; }
+        .chip.excluded { background: #fee2e2; color: #991b1b; border-color: #ef4444; }
+
+        /* 식사 기록 목록 */
+        .history-item { padding: 12px 0; border-bottom: 1px solid #f0f0f0; }
+        .history-item:last-child { border-bottom: none; }
+        .history-item .name { font-size: 14px; font-weight: 600; }
+        .history-item .sub { font-size: 12px; color: #888; margin-top: 2px; }
+
+        /* 가격 범위 입력 */
+        .price-row { display: flex; gap: 8px; align-items: center; }
+        .price-row input { flex: 1; }
+        .price-row span { font-size: 13px; color: #888; }
     </style>
 </head>
 <body>
@@ -53,6 +79,12 @@
             <label>비밀번호</label>
             <input type="password" id="login-password" placeholder="비밀번호 입력" />
             <button class="btn btn-primary" onclick="login()">로그인</button>
+            <div style="display:flex;align-items:center;gap:10px;margin-top:16px;">
+                <hr style="flex:1;border:none;border-top:1px solid #e0e0e0;" />
+                <span style="font-size:12px;color:#999;">또는</span>
+                <hr style="flex:1;border:none;border-top:1px solid #e0e0e0;" />
+            </div>
+            <button class="btn btn-kakao" onclick="kakaoLogin()">카카오 로그인</button>
             <button class="btn-link" onclick="showScreen('register')">계정이 없으신가요? 회원가입</button>
             <div id="login-msg"></div>
         </div>
@@ -84,12 +116,97 @@
         </div>
     </div>
 
+    <!-- 마이페이지 화면 -->
+    <div class="screen" id="screen-mypage">
+
+        <!-- 프로필 -->
+        <div class="card">
+            <h2>프로필</h2>
+            <label>이메일</label>
+            <input type="text" id="profile-email" disabled />
+            <label>닉네임</label>
+            <div style="display:flex;gap:8px;">
+                <input type="text" id="profile-nickname" style="flex:1;" />
+                <button class="btn btn-primary" style="width:auto;padding:9px 16px;margin-top:0;" onclick="saveNickname()">저장</button>
+            </div>
+            <div id="profile-msg"></div>
+        </div>
+
+        <!-- 취향 설정 -->
+        <div class="card">
+            <h2>취향 설정</h2>
+
+            <label>혼밥 여부</label>
+            <div style="display:flex;align-items:center;gap:8px;margin-top:4px;">
+                <input type="checkbox" id="pref-solo" style="width:auto;" />
+                <span style="font-size:13px;">혼밥 가능한 식당만 추천</span>
+            </div>
+
+            <label>가격 범위 (원)</label>
+            <div class="price-row">
+                <input type="number" id="pref-min-price" placeholder="최소" />
+                <span>~</span>
+                <input type="number" id="pref-max-price" placeholder="최대" />
+            </div>
+
+            <label>선호 카테고리 (복수 선택)</label>
+            <div class="chip-group" id="pref-categories"></div>
+
+            <label>싫어하는 카테고리 (복수 선택)</label>
+            <div class="chip-group" id="excl-categories"></div>
+
+            <button class="btn btn-primary" onclick="savePreferences()">취향 저장</button>
+            <div id="pref-msg"></div>
+        </div>
+
+        <!-- 식사 기록 -->
+        <div class="card">
+            <h2>식사 기록</h2>
+            <div id="meal-history-list"><p style="font-size:13px;color:#888;">로딩 중...</p></div>
+        </div>
+
+        <!-- 로그아웃 -->
+        <div class="card">
+            <button class="btn btn-outline" onclick="logout()">로그아웃</button>
+        </div>
+    </div>
+
 </main>
+
+<!-- 하단 네비게이션 -->
+<nav class="bottom-nav" id="bottom-nav">
+    <div class="nav-item active" id="nav-recommend" onclick="switchTab('recommend')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z"/></svg>
+        추천
+    </div>
+    <div class="nav-item" id="nav-mypage" onclick="switchTab('mypage')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+        마이페이지
+    </div>
+</nav>
 
 <script>
     const BASE = 'http://localhost:8080';
+    const KAKAO_CLIENT_ID = '427c342e3b8aa668eb44c22afae86abb';  // 본인 REST API 키로 교체
+    const KAKAO_REDIRECT_URI = 'http://localhost:8080/auth/kakao/callback';
+    const CATEGORIES = ['KOREAN','JAPANESE','CHINESE','WESTERN','CAFE','FAST_FOOD','ASIAN','OTHER'];
+    const CATEGORY_LABELS = { KOREAN:'한식', JAPANESE:'일식', CHINESE:'중식', WESTERN:'양식', CAFE:'카페', FAST_FOOD:'패스트푸드', ASIAN:'아시안', OTHER:'기타' };
+
     let accessToken = null;
     let currentRecommendationId = null;
+    let userLatitude = null;
+    let userLongitude = null;
+    let selectedPreferred = new Set();
+    let selectedExcluded = new Set();
+
+    // 페이지 로드 시 위치 권한 요청
+    (function requestLocation() {
+        navigator.geolocation.getCurrentPosition(
+            pos => { userLatitude = pos.coords.latitude; userLongitude = pos.coords.longitude; },
+            () => { userLatitude = 37.5665; userLongitude = 126.9780; },
+            { timeout: 5000 }
+        );
+    })();
 
     function showScreen(name) {
         document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
@@ -100,16 +217,48 @@
         document.getElementById(elId).innerHTML = `<div class="alert alert-${type}">${msg}</div>`;
     }
 
+    function switchTab(tab) {
+        document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+        document.getElementById('nav-' + tab).classList.add('active');
+        showScreen(tab);
+        if (tab === 'mypage') loadMyPage();
+    }
+
+    function showNav(visible) {
+        document.getElementById('bottom-nav').classList.toggle('visible', visible);
+    }
+
     async function apiCall(method, path, body, auth) {
         const headers = { 'Content-Type': 'application/json' };
         if (auth && accessToken) headers['Authorization'] = `Bearer ${accessToken}`;
         const res = await fetch(BASE + path, {
-            method,
-            headers,
+            method, headers,
             body: body ? JSON.stringify(body) : undefined
         });
         const data = await res.json().catch(() => ({}));
         return { ok: res.ok, status: res.status, data };
+    }
+
+    // 페이지 로드 시 카카오 콜백 처리 (서버에서 JWT를 URL 파라미터로 전달)
+    (function handleKakaoCallback() {
+        const params = new URLSearchParams(window.location.search);
+        const token = params.get('accessToken');
+        if (!token) return;
+
+        // URL에서 파라미터 제거
+        window.history.replaceState({}, document.title, window.location.pathname);
+
+        accessToken = token;
+        document.getElementById('user-info').textContent = '카카오 사용자';
+        showNav(true);
+        switchTab('recommend');
+    })();
+
+    // ─── 인증 ───
+
+    function kakaoLogin() {
+        const url = `https://kauth.kakao.com/oauth/authorize?client_id=${KAKAO_CLIENT_ID}&redirect_uri=${encodeURIComponent(KAKAO_REDIRECT_URI)}&response_type=code`;
+        window.location.href = url;
     }
 
     async function register() {
@@ -117,118 +266,164 @@
         const password = document.getElementById('reg-password').value;
         const nickname = document.getElementById('reg-nickname').value.trim();
         if (!email || !password || !nickname) return showMsg('register-msg', '모든 항목을 입력해주세요.', 'error');
-
         try {
             const { ok, data } = await apiCall('POST', '/auth/register', { email, password, nickname });
-            if (ok) {
-                showMsg('login-msg', '회원가입 성공! 로그인해주세요.', 'success');
-                showScreen('login');
-            } else {
-                showMsg('register-msg', data?.message || '회원가입 실패', 'error');
-            }
-        } catch (e) {
-            showMsg('register-msg', '서버 연결 실패. 서버가 실행 중인지 확인하세요.', 'error');
-        }
+            if (ok) { showMsg('login-msg', '회원가입 성공! 로그인해주세요.', 'success'); showScreen('login'); }
+            else showMsg('register-msg', data?.error?.message || '회원가입 실패', 'error');
+        } catch (e) { showMsg('register-msg', '서버 연결 실패.', 'error'); }
     }
 
     async function login() {
         const email = document.getElementById('login-email').value.trim();
         const password = document.getElementById('login-password').value;
         if (!email || !password) return showMsg('login-msg', '이메일과 비밀번호를 입력해주세요.', 'error');
-
         try {
             const { ok, data } = await apiCall('POST', '/auth/login', { email, password });
             if (ok) {
                 accessToken = data?.data?.accessToken;
                 document.getElementById('user-info').textContent = email;
-                showScreen('recommend');
-            } else {
-                showMsg('login-msg', data?.message || '로그인 실패. 이메일/비밀번호를 확인하세요.', 'error');
-            }
-        } catch (e) {
-            showMsg('login-msg', '서버 연결 실패. 서버가 실행 중인지 확인하세요.', 'error');
-        }
+                showNav(true);
+                switchTab('recommend');
+            } else showMsg('login-msg', data?.error?.message || '로그인 실패', 'error');
+        } catch (e) { showMsg('login-msg', '서버 연결 실패.', 'error'); }
     }
 
+    function logout() {
+        accessToken = null;
+        showNav(false);
+        document.getElementById('user-info').textContent = '';
+        showScreen('login');
+    }
+
+    // ─── 추천 ───
+
     async function getRecommendation() {
-        const latitude = 37.5665;
-        const longitude = 126.9780;
-
         document.getElementById('rec-result').innerHTML = '';
+        if (!userLatitude || !userLongitude) return showMsg('rec-msg', '위치 정보를 가져오는 중입니다.', 'info');
         showMsg('rec-msg', '추천 중...', 'info');
-
         try {
-            const headers = {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${accessToken}`,
-                'Idempotency-Key': crypto.randomUUID()
-            };
             const res = await fetch(BASE + '/recommendations', {
                 method: 'POST',
-                headers,
-                body: JSON.stringify({ latitude, longitude })
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${accessToken}`, 'Idempotency-Key': crypto.randomUUID() },
+                body: JSON.stringify({ latitude: userLatitude, longitude: userLongitude })
             });
             const data = await res.json().catch(() => ({}));
             if (res.ok) {
                 const rec = data?.data;
                 currentRecommendationId = rec?.recommendationId;
                 document.getElementById('rec-msg').innerHTML = '';
+                const menuInfo = rec?.menu
+                    ? `<p>추천 메뉴</p><strong>${rec.menu.name}</strong>`
+                    : `<p>추천 식당</p><strong>${rec?.restaurant?.name || '-'}</strong><p style="margin-top:4px;font-size:12px;color:#888;">메뉴 정보 준비 중</p>`;
                 document.getElementById('rec-result').innerHTML = `
                     <div class="rec-card">
-                        <p>추천 메뉴</p>
-                        <strong>${rec?.menu?.name || '메뉴 정보 없음'}</strong>
+                        ${menuInfo}
                         <p style="margin-top:6px;">식당: ${rec?.restaurant?.name || '-'}</p>
                         <p>주소: ${rec?.restaurant?.address || '-'}</p>
                         <div class="btn-row">
                             <button class="btn btn-success" onclick="acceptRec()">채택</button>
                             <button class="btn btn-danger" onclick="rejectRec()">거절</button>
                         </div>
-                    </div>
-                `;
-            } else {
-                showMsg('rec-msg', data?.message || '추천 실패', 'error');
-            }
-        } catch (e) {
-            showMsg('rec-msg', '서버 연결 실패. 서버가 실행 중인지 확인하세요.', 'error');
-        }
+                    </div>`;
+            } else showMsg('rec-msg', data?.error?.message || '추천 실패', 'error');
+        } catch (e) { showMsg('rec-msg', '서버 연결 실패.', 'error'); }
     }
 
     async function acceptRec() {
         if (!currentRecommendationId) return;
         try {
-            const { ok, data } = await apiCall('PATCH', `/recommendations/${currentRecommendationId}/accept`, {}, true);
+            const { ok } = await apiCall('PATCH', `/recommendations/${currentRecommendationId}/accept`, {}, true);
             if (ok) {
-                const mealRes = await apiCall('POST', '/meal-histories', {
-                    recommendationId: currentRecommendationId,
-                    eatenAt: new Date().toISOString().slice(0, 19)
-                }, true);
-                if (mealRes.ok) {
-                    showMsg('rec-msg', '추천을 채택했습니다! 식사 기록에 추가되었습니다.', 'success');
-                } else {
-                    showMsg('rec-msg', '추천 채택 완료. 식사 기록 추가 실패: ' + (mealRes.data?.message || ''), 'error');
-                }
+                await apiCall('POST', '/meal-histories', { recommendationId: currentRecommendationId, eatenAt: new Date().toISOString().slice(0, 19) }, true);
+                showMsg('rec-msg', '채택 완료! 식사 기록에 추가되었습니다.', 'success');
                 document.getElementById('rec-result').innerHTML = '';
-            } else {
-                showMsg('rec-msg', data?.message || '채택 실패', 'error');
             }
-        } catch (e) {
-            showMsg('rec-msg', '서버 연결 실패.', 'error');
-        }
+        } catch (e) { showMsg('rec-msg', '서버 연결 실패.', 'error'); }
     }
 
     async function rejectRec() {
         if (!currentRecommendationId) return;
         try {
-            const { ok, data } = await apiCall('PATCH', `/recommendations/${currentRecommendationId}/reject`, { reason: 'OTHER' }, true);
-            if (ok) {
-                showMsg('rec-msg', '추천을 거절했습니다. 다시 추천 받아보세요!', 'info');
-                document.getElementById('rec-result').innerHTML = '';
-            } else {
-                showMsg('rec-msg', data?.message || '거절 실패', 'error');
-            }
-        } catch (e) {
-            showMsg('rec-msg', '서버 연결 실패.', 'error');
-        }
+            const { ok } = await apiCall('PATCH', `/recommendations/${currentRecommendationId}/reject`, { reason: 'OTHER' }, true);
+            if (ok) { showMsg('rec-msg', '거절했습니다. 다시 추천 받아보세요!', 'info'); document.getElementById('rec-result').innerHTML = ''; }
+        } catch (e) { showMsg('rec-msg', '서버 연결 실패.', 'error'); }
+    }
+
+    // ─── 마이페이지 ───
+
+    async function loadMyPage() {
+        try {
+            const { ok, data } = await apiCall('GET', '/users/me', null, true);
+            if (!ok) return;
+            const profile = data?.data;
+
+            document.getElementById('profile-email').value = profile.email;
+            document.getElementById('profile-nickname').value = profile.nickname;
+            document.getElementById('pref-solo').checked = profile.preferences?.preferSolo || false;
+            document.getElementById('pref-min-price').value = profile.preferences?.minPrice || '';
+            document.getElementById('pref-max-price').value = profile.preferences?.maxPrice || '';
+
+            selectedPreferred = new Set(profile.preferences?.preferredCategories || []);
+            selectedExcluded = new Set(profile.excludedCategories || []);
+            renderChips();
+            loadMealHistory();
+        } catch (e) { console.error('마이페이지 로딩 실패', e); }
+    }
+
+    function renderChips() {
+        const prefEl = document.getElementById('pref-categories');
+        const exclEl = document.getElementById('excl-categories');
+        prefEl.innerHTML = CATEGORIES.map(c =>
+            `<span class="chip ${selectedPreferred.has(c) ? 'selected' : ''}" onclick="toggleChip('preferred','${c}')">${CATEGORY_LABELS[c]}</span>`
+        ).join('');
+        exclEl.innerHTML = CATEGORIES.map(c =>
+            `<span class="chip ${selectedExcluded.has(c) ? 'excluded' : ''}" onclick="toggleChip('excluded','${c}')">${CATEGORY_LABELS[c]}</span>`
+        ).join('');
+    }
+
+    function toggleChip(type, category) {
+        const set = type === 'preferred' ? selectedPreferred : selectedExcluded;
+        set.has(category) ? set.delete(category) : set.add(category);
+        renderChips();
+    }
+
+    async function saveNickname() {
+        const nickname = document.getElementById('profile-nickname').value.trim();
+        if (!nickname) return showMsg('profile-msg', '닉네임을 입력해주세요.', 'error');
+        try {
+            const { ok } = await apiCall('PATCH', '/users/me/nickname', { nickname }, true);
+            showMsg('profile-msg', ok ? '닉네임이 변경되었습니다.' : '변경 실패', ok ? 'success' : 'error');
+        } catch (e) { showMsg('profile-msg', '서버 연결 실패.', 'error'); }
+    }
+
+    async function savePreferences() {
+        const body = {
+            preferSolo: document.getElementById('pref-solo').checked,
+            minPrice: document.getElementById('pref-min-price').value ? parseInt(document.getElementById('pref-min-price').value) : null,
+            maxPrice: document.getElementById('pref-max-price').value ? parseInt(document.getElementById('pref-max-price').value) : null,
+            preferredCategories: [...selectedPreferred]
+        };
+        try {
+            const prefRes = await apiCall('PUT', '/users/me/preferences', body, true);
+            const exclRes = await apiCall('PUT', '/users/me/restrictions', { excludedCategories: [...selectedExcluded] }, true);
+            showMsg('pref-msg', (prefRes.ok && exclRes.ok) ? '취향이 저장되었습니다.' : '저장 실패', (prefRes.ok && exclRes.ok) ? 'success' : 'error');
+        } catch (e) { showMsg('pref-msg', '서버 연결 실패.', 'error'); }
+    }
+
+    async function loadMealHistory() {
+        const el = document.getElementById('meal-history-list');
+        try {
+            const { ok, data } = await apiCall('GET', '/meal-histories?size=10', null, true);
+            if (!ok) { el.innerHTML = '<p style="font-size:13px;color:#888;">기록을 불러올 수 없습니다.</p>'; return; }
+            const items = data?.data?.items || [];
+            if (items.length === 0) { el.innerHTML = '<p style="font-size:13px;color:#888;">아직 식사 기록이 없습니다.</p>'; return; }
+            el.innerHTML = items.map(item => `
+                <div class="history-item">
+                    <div class="name">${item.menuName}</div>
+                    <div class="sub">${item.restaurantName} &middot; ${item.eatenAt?.slice(0, 10) || ''}</div>
+                </div>
+            `).join('');
+        } catch (e) { el.innerHTML = '<p style="font-size:13px;color:#888;">기록을 불러올 수 없습니다.</p>'; }
     }
 </script>
 

@@ -10,6 +10,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.RestClient;
+import org.springframework.web.client.RestClientResponseException;
 
 /**
  * 카카오 OAuth API 클라이언트 — OAuthPort 구현체.
@@ -42,7 +43,10 @@ public class KakaoOAuthClient implements OAuthPort {
             MultiValueMap<String, String> formData = new LinkedMultiValueMap<>();
             formData.add("grant_type", "authorization_code");
             formData.add("client_id", properties.clientId());
-            formData.add("client_secret", properties.clientSecret());
+            if (properties.clientSecret() != null && !properties.clientSecret().isBlank()
+                    && !properties.clientSecret().startsWith("your-")) {
+                formData.add("client_secret", properties.clientSecret());
+            }
             formData.add("redirect_uri", properties.redirectUri());
             formData.add("code", authorizationCode);
 
@@ -59,9 +63,12 @@ public class KakaoOAuthClient implements OAuthPort {
             return response.accessToken();
         } catch (BusinessException e) {
             throw e;
+        } catch (RestClientResponseException e) {
+            throw new BusinessException(ErrorCode.EXTERNAL_API_UNAVAILABLE,
+                    "카카오 토큰 실패 status=" + e.getStatusCode() + " body=" + e.getResponseBodyAsString());
         } catch (Exception e) {
-            log.error("카카오 토큰 요청 실패 message={}", e.getMessage());
-            throw new BusinessException(ErrorCode.EXTERNAL_API_UNAVAILABLE, "카카오 토큰 요청 실패");
+            throw new BusinessException(ErrorCode.EXTERNAL_API_UNAVAILABLE,
+                    "카카오 토큰 실패 type=" + e.getClass().getName() + " msg=" + e.getMessage());
         }
     }
 

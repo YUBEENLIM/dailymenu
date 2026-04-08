@@ -30,5 +30,5 @@ kakao:
     default-radius: 500       # 미터 (기본 탐색 반경)
   oauth:
     client-id: ${KAKAO_REST_API_KEY:your-kakao-rest-api-key}
-    client-secret: ${KAKAO_ADMIN_KEY:your-kakao-admin-key}
+    client-secret: ${KAKAO_CLIENT_SECRET:}  # 카카오 콘솔에서 클라이언트 시크릿 비활성화 시 빈 값
     redirect-uri: http://localhost:8080/auth/kakao/callback

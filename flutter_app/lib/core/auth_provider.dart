@@ -24,7 +24,8 @@ class AuthProvider extends ChangeNotifier {
     });
 
     if (response.statusCode == 200) {
-      final data = jsonDecode(response.body);
+      final body = jsonDecode(response.body);
+      final data = body['data'] ?? body;
       await ApiClient.saveTokens(data['accessToken'], data['refreshToken']);
       _isLoggedIn = true;
       notifyListeners();
@@ -42,10 +43,16 @@ class AuthProvider extends ChangeNotifier {
     });
 
     if (response.statusCode == 200 || response.statusCode == 201) {
-      final data = jsonDecode(response.body);
-      await ApiClient.saveTokens(data['accessToken'], data['refreshToken']);
-      _isLoggedIn = true;
-      notifyListeners();
+      // 토큰 확보 (온보딩 API 호출에 필요), 라우터 redirect 방지를 위해 notifyListeners 생략
+      final loginResponse = await ApiClient.post('/auth/login', body: {
+        'email': email,
+        'password': password,
+      });
+      if (loginResponse.statusCode == 200) {
+        final body = jsonDecode(loginResponse.body);
+        final data = body['data'] ?? body;
+        await ApiClient.saveTokens(data['accessToken'], data['refreshToken']);
+      }
       return null;
     }
     final error = jsonDecode(response.body);

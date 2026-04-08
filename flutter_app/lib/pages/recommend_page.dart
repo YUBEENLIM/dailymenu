@@ -1,7 +1,12 @@
 import 'dart:convert';
+import 'dart:math';
 import 'package:flutter/material.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:geocoding/geocoding.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../core/theme.dart';
 import '../core/api_client.dart';
+import '../core/category_map.dart';
 import '../widgets/primary_button.dart';
 import '../widgets/secondary_button.dart';
 import '../widgets/app_card.dart';
@@ -24,21 +29,130 @@ class RecommendPage extends StatefulWidget {
 class _RecommendPageState extends State<RecommendPage> {
   RecommendState _state = RecommendState.initial;
   Map<String, dynamic>? _currentResult;
+  String _locationText = '위치를 설정해주세요';
+  double? _latitude;
+  double? _longitude;
+
+  Future<Position?> _getCurrentPosition() async {
+    final permission = await Geolocator.checkPermission();
+    if (permission == LocationPermission.denied) {
+      final requested = await Geolocator.requestPermission();
+      if (requested == LocationPermission.denied ||
+          requested == LocationPermission.deniedForever) {
+        return null;
+      }
+    }
+    if (permission == LocationPermission.deniedForever) return null;
+    return await Geolocator.getCurrentPosition();
+  }
+
+  Future<bool> _resolveLocation() async {
+    final position = await _getCurrentPosition();
+    if (position != null) {
+      _latitude = position.latitude;
+      _longitude = position.longitude;
+      await _updateLocationText(_latitude!, _longitude!);
+      return true;
+    }
+    // GPS 거부 → 주소 입력 다이얼로그
+    if (!mounted) return false;
+    final address = await _showAddressInputDialog();
+    if (address == null || address.isEmpty) return false;
+    try {
+      final locations = await locationFromAddress(address);
+      if (locations.isNotEmpty) {
+        _latitude = locations.first.latitude;
+        _longitude = locations.first.longitude;
+        if (mounted) setState(() => _locationText = address);
+        return true;
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('주소를 찾을 수 없습니다. 다시 시도해주세요.')),
+        );
+      }
+    }
+    return false;
+  }
+
+  Future<void> _updateLocationText(double lat, double lng) async {
+    try {
+      final placemarks = await placemarkFromCoordinates(lat, lng);
+      if (placemarks.isNotEmpty && mounted) {
+        final p = placemarks.first;
+        final addr = [p.locality, p.subLocality, p.thoroughfare]
+            .where((s) => s != null && s.isNotEmpty)
+            .join(' ');
+        setState(() => _locationText = addr.isNotEmpty ? addr : '내 위치');
+      }
+    } catch (_) {
+      if (mounted) setState(() => _locationText = '내 위치');
+    }
+  }
+
+  Future<String?> _showAddressInputDialog() async {
+    final controller = TextEditingController();
+    return showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('위치 입력'),
+        content: TextField(
+          controller: controller,
+          decoration: const InputDecoration(
+            hintText: '예: 서울시 은평구 불광동',
+            prefixIcon: Icon(Icons.search),
+          ),
+          autofocus: true,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('취소'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, controller.text.trim()),
+            child: const Text('확인'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _openMap() {
+    final restaurant = _currentResult?['restaurant'] as Map<String, dynamic>?;
+    final address = restaurant?['address'] ?? '';
+    final name = restaurant?['name'] ?? '';
+    final query = Uri.encodeComponent(address.isNotEmpty ? '$name $address' : name);
+    launchUrl(Uri.parse('https://map.kakao.com/?q=$query'));
+  }
 
   Future<void> _getRecommendation() async {
     setState(() => _state = RecommendState.loading);
 
     try {
-      final response = await ApiClient.post('/recommendations', body: {
-        'latitude': 37.4979,
-        'longitude': 127.0276,
-        // TODO: GPS 위치 연동
-      });
+      if (_latitude == null || _longitude == null) {
+        final resolved = await _resolveLocation();
+        if (!resolved) {
+          if (mounted) setState(() => _state = RecommendState.initial);
+          return;
+        }
+      }
+
+      final idempotencyKey = '${DateTime.now().millisecondsSinceEpoch}-${Random().nextInt(999999)}';
+      final response = await ApiClient.post('/recommendations',
+        body: {
+          'latitude': _latitude,
+          'longitude': _longitude,
+        },
+        extraHeaders: {'Idempotency-Key': idempotencyKey},
+      );
 
       if (!mounted) return;
 
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        final body = jsonDecode(response.body);
+        final data = body['data'] ?? body;
         setState(() {
           _currentResult = data;
           _state = RecommendState.result;
@@ -73,6 +187,16 @@ class _RecommendPageState extends State<RecommendPage> {
 
     try {
       await ApiClient.patch('/recommendations/$id/accept');
+
+      // 식사 기록 자동 생성
+      await ApiClient.post('/meal-histories', body: {
+        'recommendationId': id,
+        'eatenAt': DateTime.now().toIso8601String(),
+      });
+
+      // 지도 열기
+      _openMap();
+
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('좋은 식사 되세요!')),
@@ -153,23 +277,45 @@ class _RecommendPageState extends State<RecommendPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Row(
-                    children: [
-                      Icon(Icons.location_on,
-                          size: 16, color: AppColors.mutedForeground),
-                      const SizedBox(width: 4),
-                      Text(
-                        '강남역 근처',
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: AppColors.mutedForeground,
+                  GestureDetector(
+                    onTap: () async {
+                      final address = await _showAddressInputDialog();
+                      if (address == null || address.isEmpty) return;
+                      try {
+                        final locations = await locationFromAddress(address);
+                        if (locations.isNotEmpty) {
+                          _latitude = locations.first.latitude;
+                          _longitude = locations.first.longitude;
+                          if (mounted) setState(() => _locationText = address);
+                        }
+                      } catch (_) {
+                        if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('주소를 찾을 수 없습니다.')),
+                          );
+                        }
+                      }
+                    },
+                    child: Row(
+                      children: [
+                        Icon(Icons.location_on,
+                            size: 16, color: AppColors.primary),
+                        const SizedBox(width: 4),
+                        Text(
+                          _locationText,
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: AppColors.primary,
+                          ),
                         ),
-                      ),
-                    ],
+                        const SizedBox(width: 4),
+                        Icon(Icons.edit, size: 12, color: AppColors.primary),
+                      ],
+                    ),
                   ),
                   const SizedBox(height: 4),
                   const Text(
-                    '오늘 뭐 먹을까?',
+                    '오늘 뭐 먹지?',
                     style: TextStyle(
                       fontSize: 24,
                       fontWeight: FontWeight.bold,
@@ -257,7 +403,9 @@ class _RecommendPageState extends State<RecommendPage> {
 
   Widget _buildResult() {
     if (_currentResult == null) return const SizedBox();
-    final hasMenu = _currentResult!['menuName'] != null;
+    final menu = _currentResult!['menu'] as Map<String, dynamic>?;
+    final restaurant = _currentResult!['restaurant'] as Map<String, dynamic>?;
+    final hasMenu = menu != null;
 
     return SingleChildScrollView(
       child: Column(
@@ -268,18 +416,29 @@ class _RecommendPageState extends State<RecommendPage> {
               children: [
                 if (hasMenu) ...[
                   Text(
-                    _currentResult!['menuName'],
+                    menu['name'] ?? '',
                     style: const TextStyle(
                         fontSize: 24, fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    _currentResult!['restaurantName'] ?? '',
+                    restaurant?['name'] ?? '',
                     style: const TextStyle(fontSize: 18),
                   ),
+                  if (menu['price'] != null) ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      '${menu['price']}원',
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.primary,
+                      ),
+                    ),
+                  ],
                 ] else ...[
                   Text(
-                    _currentResult!['restaurantName'] ?? '식당 추천',
+                    restaurant?['name'] ?? '식당 추천',
                     style: const TextStyle(
                         fontSize: 24, fontWeight: FontWeight.bold),
                   ),
@@ -293,18 +452,18 @@ class _RecommendPageState extends State<RecommendPage> {
                   ),
                 ],
                 const SizedBox(height: 12),
-                if (_currentResult!['address'] != null)
+                if (restaurant?['address'] != null)
                   Text(
-                    _currentResult!['address'],
+                    restaurant!['address'],
                     style: const TextStyle(
                       fontSize: 14,
                       color: AppColors.mutedForeground,
                     ),
                   ),
-                if (_currentResult!['distance'] != null) ...[
+                if (restaurant?['distance'] != null) ...[
                   const SizedBox(height: 4),
                   Text(
-                    '${_currentResult!['distance']}m 거리',
+                    '${restaurant!['distance'].toInt()}m 거리',
                     style: const TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.w500,
@@ -313,9 +472,9 @@ class _RecommendPageState extends State<RecommendPage> {
                   ),
                 ],
                 const SizedBox(height: 12),
-                if (_currentResult!['category'] != null)
+                if (menu?['category'] != null)
                   AppChip(
-                    label: _currentResult!['category'],
+                    label: categoryLabel(menu!['category']),
                     selected: true,
                   ),
               ],

@@ -156,6 +156,82 @@
   - 해결 방향: 가상 메모리 확대 또는 Chrome(Web)에서 테스트
   - **아직 실행 테스트 미완료** — 다음 세션에서 확인 예정
 
+## 2026-04-08
+### 실제 안드로이드 기기에서 Flutter 앱 테스트 및 버그 수정
+
+#### 환경 설정
+- USB 디버깅으로 갤럭시 SM S906N (Android 16) 연결
+- Flutter Android SDK 경로 설정 (`flutter config --android-sdk C:/Android/sdk`)
+- 손상된 NDK 삭제 후 자동 재다운로드
+- Gradle Kotlin 캐시 정리 (한글 사용자 폴더명 인코딩 이슈)
+- 첫 빌드 시 SDK Platform 33, CMake 3.22.1 자동 설치
+
+#### Flutter ↔ 백엔드 API 연동 버그 수정
+- **ApiResponseWrappingAdvice 대응**: 백엔드가 모든 응답을 `{ success, data }` 구조로 래핑 → Flutter에서 `body['data']`로 실제 데이터 추출하도록 수정
+  - auth_provider.dart: 로그인 토큰 추출 (`data['accessToken']`)
+  - recommend_page.dart: 추천 결과 파싱
+  - profile_page.dart: 프로필/식사기록 파싱
+- **HTTP 상태코드 불일치**: 회원가입(201), 추천(201) 반환인데 앱은 200만 체크 → 201도 성공으로 처리
+- **Idempotency-Key 헤더 누락**: 추천 API에 필수 헤더 자동 생성 추가 (timestamp + random)
+- **추천 응답 필드 구조 불일치**: 앱이 `menuName`, `restaurantName` 플랫 구조 기대 → 백엔드 실제 구조 `menu.name`, `restaurant.name` 중첩 구조에 맞게 수정
+- **카테고리 enum 매핑**: 백엔드 `KOREAN`/`JAPANESE` enum ↔ 프론트 한글 표시 양방향 변환
+  - category_map.dart 신규 생성: `categoryChips`, `enumToLabel`, `categoryLabel()` 
+  - 온보딩/마이페이지에서 enum 값으로 직접 관리 (한글→enum 다대일 변환 문제 해결)
+
+#### 회원가입 → 온보딩 → 추천 흐름 수정
+- 회원가입 후 토큰만 저장 (notifyListeners 생략) → 라우터 redirect 방지 → 온보딩 화면 정상 이동
+- 온보딩 완료/건너뛰기 시 `checkAuth()` 호출 → 로그인 상태 반영 후 추천 화면 이동
+- 라우터에서 `/onboarding` 경로를 로그인 후에도 접근 가능하도록 허용
+
+#### 추천 기능 개선
+- **GPS 위치 기반 추천**: geolocator 패키지로 실제 핸드폰 위치 사용
+- **GPS 거부 시 주소 입력 fallback**: 다이얼로그에서 직접 주소 입력 → geocoding으로 좌표 변환
+- **위치 표시**: 역지오코딩으로 "서울시 불광동" 형태 표시, 헤더 탭하면 위치 재설정 가능
+- **지도 안내**: 추천 결과에 "지도에서 보기" 버튼 → 카카오맵 웹으로 연결
+- **식사 기록 자동 생성**: "여기 갈래요" 클릭 시 accept + POST /meal-histories 자동 호출
+
+#### UI/UX 개선
+- 카테고리 칩: 백엔드 enum 1:1 매핑 (한식/일식/중식/양식/패스트푸드/아시안), 기타·카페/디저트 제거
+- 가격 슬라이더: 1000원 단위 (divisions: 45)
+- 마이페이지: 수정 취소 버튼 추가, 저장 버튼 취향 설정 하단으로 이동
+- 취향 저장 실패 시 에러 토스트 표시
+- ApiClient.post에 extraHeaders 파라미터 추가
+
+#### 카카오 OAuth 로그인 해결
+- **KOE010 invalid_client 에러 해결** — 원인: 카카오 콘솔에서 클라이언트 시크릿 활성화 상태인데 잘못된 키(어드민 키)를 보내고 있었음
+  - 클라이언트 시크릿 비활성화 (개발 단계에서 불필요)
+  - application.yml: `client-secret`을 `KAKAO_CLIENT_SECRET` 환경변수로 변경 (기본값 빈 문자열)
+  - KakaoOAuthClient: client_secret이 비어있으면 전송 안 하도록 조건부 처리
+  - 에러 로깅 강화: RestClientResponseException catch로 카카오 응답 status/body 출력
+- index.html에서 카카오 로그인 → JWT 발급까지 성공 확인
+
+#### Flutter 카카오 로그인 구현
+- kakao_login_page.dart 신규 생성 (WebView 기반)
+  - WebView에서 카카오 OAuth 인가 페이지 표시
+  - redirect URI(`localhost:8080/auth/kakao/callback`)를 가로채서 인가 코드 추출
+  - POST /auth/kakao로 인가 코드 전달 → JWT 수신 → 토큰 저장
+  - 카카오 로그인 성공 시 온보딩 화면으로 이동
+- 로그인 페이지 카카오 버튼: "준비 중" → WebView 페이지로 이동
+- 라우터에 `/kakao-login` 경로 추가
+- webview_flutter: ^4.10.0 의존성 추가
+
+#### UI/UX 추가 개선
+- 헤더 텍스트: "오늘 뭐 먹을까?" → "오늘 뭐 먹지?" (서비스 슬로건 통일)
+- "여기 갈래요!" 버튼에 지도 열기 통합: 식사 기록 저장 + 카카오맵 자동 열기
+- "지도에서 보기" 독립 버튼 제거 → 버튼 2개로 단순화 (여기 갈래요! / 다른 거 추천해줘)
+
+#### 의존성 추가
+- geolocator: ^13.0.0 (GPS)
+- geocoding: ^3.0.0 (역지오코딩/주소→좌표)
+- url_launcher: ^6.2.0 (카카오맵 열기)
+- webview_flutter: ^4.10.0 (카카오 OAuth WebView)
+
+#### BDD 테스트
+- 전체 테스트 통과 확인 (Health Check + 추천 Happy Path)
+- 오늘 변경사항(카카오 OAuth, Flutter)이 기존 BDD 테스트에 영향 없음 확인
+
 ## 미완료
-- CLAUDE.md 핵심 클래스 파일 경로 가이드 추가 — 구조 안정화 후 적용. Context별 주요 클래스(Facade, UseCase, Policy, Port, Adapter, Controller) 경로를 테이블로 정리하면 AI 탐색 비용 절감
-- conventions.md 테스트 체크리스트 추가 — 테스트 본격 작성 시 적용. Domain(순수 단위)/UseCase(Mock Port)/Adapter(Testcontainers) 구분, 동시성 테스트 CountDownLatch 패턴, 금지 패턴(@SpringBootTest 남용, Thread.sleep 대기) 포함
+- **온보딩 → 마이페이지 데이터 동기화 안 됨** — 온보딩에서 설정한 취향이 마이페이지에 반영되지 않음. PUT /users/me/preferences 호출은 되나 실제 저장 여부 확인 필요 (백엔드 로그 확인 또는 디버그 로깅 추가)
+- **마이페이지 취향 수정 반영 안 됨** — 혼밥 선호, 가격 범위, 선호 카테고리 수정 후 저장해도 재로드 시 원래 값으로 돌아옴. 닉네임/싫어하는 카테고리는 정상 동작
+- CLAUDE.md 핵심 클래스 파일 경로 가이드 추가
+- conventions.md 테스트 체크리스트 추가

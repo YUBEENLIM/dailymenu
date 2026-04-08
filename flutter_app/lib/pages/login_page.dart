@@ -123,12 +123,7 @@ class _LoginPageState extends State<LoginPage> {
                     width: double.infinity,
                     height: 48,
                     child: ElevatedButton.icon(
-                      onPressed: () {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                              content: Text('카카오 로그인은 준비 중입니다.')),
-                        );
-                      },
+                      onPressed: () => context.go('/kakao-login'),
                       icon: const Icon(Icons.chat_bubble, color: Colors.black),
                       label: const Text(
                         '카카오 로그인',

@@ -5,16 +5,13 @@ import 'package:provider/provider.dart';
 import '../core/theme.dart';
 import '../core/api_client.dart';
 import '../core/auth_provider.dart';
+import '../core/category_map.dart';
 import '../widgets/primary_button.dart';
 import '../widgets/app_card.dart';
 import '../widgets/app_chip.dart';
 import '../widgets/bottom_nav.dart';
 import '../widgets/skeleton_ui.dart';
 
-const _categories = [
-  '한식', '중식', '일식', '양식', '분식',
-  '치킨', '피자', '버거', '아시안', '디저트',
-];
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
@@ -60,23 +57,26 @@ class _ProfilePageState extends State<ProfilePage> {
       if (!mounted) return;
 
       if (results[0].statusCode == 200) {
-        final data = jsonDecode(results[0].body);
+        final body = jsonDecode(results[0].body);
+        final data = body['data'] ?? body;
         _userData = data;
         _nicknameController.text = data['nickname'] ?? '';
         final prefs = data['preferences'];
         if (prefs != null) {
           _selectedCategories =
               List<String>.from(prefs['preferredCategories'] ?? []);
-          _priceRange = (prefs['maxPriceRange'] ?? 20000).toDouble();
-          _soloPreference = prefs['soloPreference'] ?? false;
+          _priceRange = (prefs['maxPrice'] ?? 20000).toDouble();
+          _soloPreference = prefs['preferSolo'] ?? false;
         }
         _dislikedCategories =
             List<String>.from(data['excludedCategories'] ?? []);
       }
 
       if (results[1].statusCode == 200) {
-        final records = jsonDecode(results[1].body);
-        _mealRecords = List<Map<String, dynamic>>.from(records);
+        final body = jsonDecode(results[1].body);
+        final data = body['data'] ?? body;
+        final items = data['items'] ?? data;
+        _mealRecords = List<Map<String, dynamic>>.from(items is List ? items : []);
       }
     } catch (e) {
       if (!mounted) return;
@@ -100,16 +100,28 @@ class _ProfilePageState extends State<ProfilePage> {
     }
 
     // 취향 업데이트
-    await ApiClient.put('/users/me/preferences', body: {
+    final prefResponse = await ApiClient.put('/users/me/preferences', body: {
       'preferredCategories': _selectedCategories,
-      'maxPriceRange': _priceRange.toInt(),
-      'soloPreference': _soloPreference,
+      'maxPrice': _priceRange.toInt(),
+      'minPrice': 0,
+      'preferSolo': _soloPreference,
     });
 
     // 싫어하는 카테고리 업데이트
-    await ApiClient.put('/users/me/restrictions', body: {
+    final restResponse = await ApiClient.put('/users/me/restrictions', body: {
       'excludedCategories': _dislikedCategories,
     });
+
+    if (prefResponse.statusCode != 200 || restResponse.statusCode != 200) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('취향 저장 실패 (${prefResponse.statusCode})'),
+          backgroundColor: AppColors.destructive,
+        ),
+      );
+      return;
+    }
 
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
@@ -125,24 +137,24 @@ class _ProfilePageState extends State<ProfilePage> {
     context.go('/login');
   }
 
-  void _toggleCategory(String category) {
+  void _toggleCategory(String enumValue) {
     if (!_editing) return;
     setState(() {
-      if (_selectedCategories.contains(category)) {
-        _selectedCategories.remove(category);
+      if (_selectedCategories.contains(enumValue)) {
+        _selectedCategories.remove(enumValue);
       } else {
-        _selectedCategories.add(category);
+        _selectedCategories.add(enumValue);
       }
     });
   }
 
-  void _toggleDisliked(String category) {
+  void _toggleDisliked(String enumValue) {
     if (!_editing) return;
     setState(() {
-      if (_dislikedCategories.contains(category)) {
-        _dislikedCategories.remove(category);
+      if (_dislikedCategories.contains(enumValue)) {
+        _dislikedCategories.remove(enumValue);
       } else {
-        _dislikedCategories.add(category);
+        _dislikedCategories.add(enumValue);
       }
     });
   }
@@ -182,6 +194,14 @@ class _ProfilePageState extends State<ProfilePage> {
                           _buildProfile(),
                           const SizedBox(height: 24),
                           _buildPreferences(),
+                          if (_editing) ...[
+                            const SizedBox(height: 16),
+                            PrimaryButton(
+                              text: '저장',
+                              fullWidth: true,
+                              onPressed: _handleSave,
+                            ),
+                          ],
                           const SizedBox(height: 24),
                           _buildMealHistory(),
                           const SizedBox(height: 24),
@@ -249,10 +269,21 @@ class _ProfilePageState extends State<ProfilePage> {
           ),
           const SizedBox(height: 16),
           if (_editing)
-            PrimaryButton(
-              text: '저장',
-              fullWidth: true,
-              onPressed: _handleSave,
+            GestureDetector(
+              onTap: () {
+                setState(() => _editing = false);
+                _loadData(); // 원래 데이터로 복원
+              },
+              child: const Row(
+                children: [
+                  Icon(Icons.arrow_back, size: 18, color: AppColors.mutedForeground),
+                  SizedBox(width: 8),
+                  Text(
+                    '수정 취소',
+                    style: TextStyle(color: AppColors.mutedForeground),
+                  ),
+                ],
+              ),
             )
           else
             GestureDetector(
@@ -393,7 +424,7 @@ class _ProfilePageState extends State<ProfilePage> {
                   value: _priceRange,
                   min: 5000,
                   max: 50000,
-                  divisions: 9,
+                  divisions: 45,
                   activeColor: AppColors.primary,
                   onChanged: (v) => setState(() => _priceRange = v),
                 ),
@@ -419,11 +450,11 @@ class _ProfilePageState extends State<ProfilePage> {
               Wrap(
                 spacing: 8,
                 runSpacing: 8,
-                children: _categories
+                children: categoryChips
                     .map((c) => AppChip(
-                          label: c,
-                          selected: _selectedCategories.contains(c),
-                          onTap: _editing ? () => _toggleCategory(c) : null,
+                          label: c['label']!,
+                          selected: _selectedCategories.contains(c['value']),
+                          onTap: _editing ? () => _toggleCategory(c['value']!) : null,
                         ))
                     .toList(),
               ),
@@ -448,12 +479,12 @@ class _ProfilePageState extends State<ProfilePage> {
               Wrap(
                 spacing: 8,
                 runSpacing: 8,
-                children: _categories
+                children: categoryChips
                     .map((c) => AppChip(
-                          label: c,
+                          label: c['label']!,
                           variant: ChipVariant.dislike,
-                          selected: _dislikedCategories.contains(c),
-                          onTap: _editing ? () => _toggleDisliked(c) : null,
+                          selected: _dislikedCategories.contains(c['value']),
+                          onTap: _editing ? () => _toggleDisliked(c['value']!) : null,
                         ))
                     .toList(),
               ),

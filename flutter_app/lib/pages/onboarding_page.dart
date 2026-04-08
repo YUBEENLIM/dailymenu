@@ -1,15 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
 import '../core/theme.dart';
 import '../core/api_client.dart';
+import '../core/auth_provider.dart';
+import '../core/category_map.dart';
 import '../widgets/primary_button.dart';
 import '../widgets/secondary_button.dart';
 import '../widgets/app_chip.dart';
 
-const _categories = [
-  '한식', '중식', '일식', '양식', '분식',
-  '치킨', '피자', '버거', '아시안', '디저트',
-];
 
 class OnboardingPage extends StatefulWidget {
   const OnboardingPage({super.key});
@@ -19,16 +18,16 @@ class OnboardingPage extends StatefulWidget {
 }
 
 class _OnboardingPageState extends State<OnboardingPage> {
-  final List<String> _selectedCategories = [];
+  final List<String> _selectedEnums = []; // 백엔드 enum 값으로 관리
   double _priceRange = 20000;
   bool _saving = false;
 
-  void _toggleCategory(String category) {
+  void _toggleCategory(String enumValue) {
     setState(() {
-      if (_selectedCategories.contains(category)) {
-        _selectedCategories.remove(category);
+      if (_selectedEnums.contains(enumValue)) {
+        _selectedEnums.remove(enumValue);
       } else {
-        _selectedCategories.add(category);
+        _selectedEnums.add(enumValue);
       }
     });
   }
@@ -37,9 +36,10 @@ class _OnboardingPageState extends State<OnboardingPage> {
     setState(() => _saving = true);
 
     final response = await ApiClient.put('/users/me/preferences', body: {
-      'preferredCategories': _selectedCategories,
-      'maxPriceRange': _priceRange.toInt(),
-      'soloPreference': false,
+      'preferredCategories': _selectedEnums,
+      'maxPrice': _priceRange.toInt(),
+      'minPrice': 0,
+      'preferSolo': false,
     });
 
     setState(() => _saving = false);
@@ -50,6 +50,8 @@ class _OnboardingPageState extends State<OnboardingPage> {
         const SnackBar(content: Text('취향 설정 완료!')),
       );
     }
+    await context.read<AuthProvider>().checkAuth();
+    if (!mounted) return;
     context.go('/');
   }
 
@@ -86,11 +88,11 @@ class _OnboardingPageState extends State<OnboardingPage> {
               Wrap(
                 spacing: 8,
                 runSpacing: 8,
-                children: _categories
+                children: categoryChips
                     .map((c) => AppChip(
-                          label: c,
-                          selected: _selectedCategories.contains(c),
-                          onTap: () => _toggleCategory(c),
+                          label: c['label']!,
+                          selected: _selectedEnums.contains(c['value']),
+                          onTap: () => _toggleCategory(c['value']!),
                         ))
                     .toList(),
               ),
@@ -116,7 +118,7 @@ class _OnboardingPageState extends State<OnboardingPage> {
                 value: _priceRange,
                 min: 5000,
                 max: 50000,
-                divisions: 9,
+                divisions: 45,
                 activeColor: AppColors.primary,
                 onChanged: (v) => setState(() => _priceRange = v),
               ),
@@ -133,7 +135,11 @@ class _OnboardingPageState extends State<OnboardingPage> {
               SecondaryButton(
                 text: '건너뛰기',
                 fullWidth: true,
-                onPressed: () => context.go('/'),
+                onPressed: () async {
+                  await context.read<AuthProvider>().checkAuth();
+                  if (!mounted) return;
+                  context.go('/');
+                },
               ),
               const SizedBox(height: 24),
             ],

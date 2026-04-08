@@ -51,8 +51,9 @@ class ApiClient {
   }
 
   static Future<http.Response> post(String path,
-      {Map<String, dynamic>? body}) async {
+      {Map<String, dynamic>? body, Map<String, String>? extraHeaders}) async {
     final headers = await _authHeaders();
+    if (extraHeaders != null) headers.addAll(extraHeaders);
     final response = await http.post(
       Uri.parse('$baseUrl$path'),
       headers: headers,
@@ -62,6 +63,7 @@ class ApiClient {
       final refreshed = await _tryRefreshToken();
       if (refreshed) {
         final newHeaders = await _authHeaders();
+        if (extraHeaders != null) newHeaders.addAll(extraHeaders);
         return http.post(
           Uri.parse('$baseUrl$path'),
           headers: newHeaders,

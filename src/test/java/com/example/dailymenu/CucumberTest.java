@@ -15,6 +15,10 @@ import org.junit.platform.suite.api.Suite;
 @ConfigurationParameter(
         key = Constants.GLUE_PROPERTY_NAME,
         value = "com.example.dailymenu"
-) // 변경된 부분: 같은 패키지 기준으로 glue 범위 지정
+)
+@ConfigurationParameter(
+        key = Constants.PLUGIN_PROPERTY_NAME,
+        value = "pretty, html:build/reports/cucumber/index.html"
+)
 public class CucumberTest {
 }

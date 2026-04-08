@@ -1,4 +1,4 @@
-package com.example.dailymenu.adapter.in.web;
+package com.example.dailymenu.shared.adapter.in.web;
 
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;

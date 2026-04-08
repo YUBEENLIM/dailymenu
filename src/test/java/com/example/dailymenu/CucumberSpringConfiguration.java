@@ -2,9 +2,11 @@ package com.example.dailymenu;
 
 import java.time.Duration;
 
+import com.example.dailymenu.config.TestAdapterConfig;
 import io.cucumber.spring.CucumberContextConfiguration;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.context.annotation.Import;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
@@ -17,6 +19,7 @@ import org.testcontainers.utility.DockerImageName;
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.MOCK)
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
+@Import(TestAdapterConfig.class)
 public class CucumberSpringConfiguration {
 
     static MySQLContainer<?> mysql =

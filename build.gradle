@@ -34,6 +34,10 @@ dependencies {
 	runtimeOnly 'com.mysql:mysql-connector-j' //MYSQL JDBC 드라이버
 	implementation 'org.springframework.boot:spring-boot-starter-data-redis' // Spring Data Redis
 	implementation 'org.springframework.kafka:spring-kafka' // Kafka
+	implementation 'org.springframework.security:spring-security-crypto' // BCrypt 비밀번호 해싱
+	implementation 'io.jsonwebtoken:jjwt-api:0.12.6' // JWT 토큰 생성/검증
+	runtimeOnly 'io.jsonwebtoken:jjwt-impl:0.12.6'
+	runtimeOnly 'io.jsonwebtoken:jjwt-jackson:0.12.6'
 	annotationProcessor 'org.projectlombok:lombok'
 	// Spring MVC 테스트용 의존성
 	testImplementation 'org.springframework.boot:spring-boot-starter-test'
@@ -54,9 +58,11 @@ dependencies {
 	testImplementation 'org.testcontainers:kafka' // 변경된 부분
 	//Redis용 GenericContainer 사용을 위한 core
 	testImplementation 'org.testcontainers:testcontainers' // 변경된 부분
+	testImplementation 'com.fasterxml.jackson.core:jackson-databind' // 테스트 JSON 파싱
 	testImplementation 'org.springframework.boot:spring-boot-webmvc-test'
 	testImplementation 'org.springframework.boot:spring-boot-starter-test'
 
+	implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.8'
 }
 
 tasks.withType(JavaCompile).configureEach {
@@ -69,4 +75,8 @@ tasks.withType(Test).configureEach {
 
 tasks.named('test') {
 	useJUnitPlatform()
+}
+
+bootRun {
+	jvmArgs = ['-Dfile.encoding=UTF-8']
 }

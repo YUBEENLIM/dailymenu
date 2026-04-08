@@ -46,11 +46,17 @@ public RecommendationJpaEntity getRecommendation() { ... } // 절대 금지
 ```java
 // ✅ 커스텀 예외 사용
 public enum ErrorCode {
+    // Recommendation
     RECOMMENDATION_NOT_FOUND("R001", "추천 결과를 찾을 수 없습니다."),
     DUPLICATE_REQUEST("R002", "중복 요청입니다."),
     LOCK_ACQUISITION_FAILED("R003", "요청이 처리 중입니다. 잠시 후 다시 시도해주세요."),
-    EXTERNAL_API_UNAVAILABLE("R004", "외부 서비스를 일시적으로 사용할 수 없습니다.");
-
+    EXTERNAL_API_UNAVAILABLE("R004", "외부 서비스를 일시적으로 사용할 수 없습니다."),
+    RATE_LIMIT_EXCEEDED("R005", "요청 횟수를 초과했습니다. 잠시 후 다시 시도해주세요."),
+    // Common
+    INVALID_REQUEST("C001", "요청 파라미터 오류입니다."),
+    UNAUTHORIZED("C002", "인증에 실패했습니다."),
+    FORBIDDEN("C003", "권한이 없습니다.");
+    
     private final String code;
     private final String message;
 }
@@ -94,21 +100,21 @@ public class Recommendation { ... }
 실행 제어용 Port(예: `LockPort`, `RateLimitPort`)는 Application에서 정의할 수 있다.
 
 ```java
-// ✅ 도메인 규칙 수행에 필요한 Port → domain 패키지
-// domain/place/port/PlacePort.java
+// ✅ 도메인 규칙 수행에 필요한 Port → 해당 Context의 domain/port 패키지
+// place/domain/port/PlacePort.java
 public interface PlacePort {
     List<NearbyRestaurant> findNearby(double lat, double lng);
 }
 
-// ✅ 실행 제어용 Port → application 패키지
-// application/port/out/LockPort.java
+// ✅ 실행 제어용 Port → shared/application/port/out 패키지
+// shared/application/port/out/LockPort.java
 public interface LockPort {
     boolean tryLock(String key, long ttlSeconds);
     void unlock(String key);
 }
 
-// ✅ Adapter는 adapter/out 패키지에서 구현
-// adapter/out/place/kakao/KakaoPlaceAdapter.java
+// ✅ Adapter는 해당 Context의 adapter/out 패키지에서 구현
+// place/adapter/out/KakaoPlaceAdapter.java
 @Component
 public class KakaoPlaceAdapter implements PlacePort {
     @Override
@@ -118,8 +124,8 @@ public class KakaoPlaceAdapter implements PlacePort {
 }
 
 // ❌ 금지: Domain이 Adapter를 직접 참조
-// domain/recommendation/RecommendationPolicy.java
-import com.example.adapter.out.place.kakao.KakaoPlaceAdapter; // 절대 금지
+// recommendation/domain/RecommendationPolicy.java
+import com.example.dailymenu.place.adapter.out.KakaoPlaceAdapter; // 절대 금지
 ```
 
 ### Application 레이어 — Facade vs UseCase 분리
@@ -233,11 +239,11 @@ class RecommendationUseCaseTest {
 
 ```java
 // ❌ 치명적 실수: Domain이 Adapter를 직접 참조
-package com.example.domain.recommendation;
-import com.example.adapter.out.place.kakao.KakaoPlaceAdapter; // 헥사고날 붕괴
+package com.example.dailymenu.recommendation.domain;
+import com.example.dailymenu.place.adapter.out.KakaoPlaceAdapter; // 헥사고날 붕괴
 
 // ✅ Domain은 Port(인터페이스)만 참조
-import com.example.domain.place.port.PlacePort; // 올바른 참조
+import com.example.dailymenu.place.domain.port.PlacePort; // 올바른 참조
 ```
 
 ### N+1 문제
@@ -289,6 +295,8 @@ public void recommend() {        // Facade — @Transactional 없음
     }
 }
 ```
+
+> 설계 관점 상세: `/docs/architecture.md` §13
 
 ### @Data 남용 금지
 
@@ -380,3 +388,30 @@ log.error("분산 락 획득 실패 userId={} reason={}", userId, e.getMessage()
 // ❌ 금지: 민감 정보 직접 출력
 log.info("사용자 정보: {}", userProfile); // 위치, 식사 기록 등 개인정보 포함 금지
 ```
+
+---
+
+## 7. 커밋 메시지 규칙
+
+### 형식
+
+```
+<type>: <설명>
+```
+
+### type 목록
+
+| type | 용도 | 예시 |
+|---|---|---|
+| `feat` | 새 기능 추가 | `feat: 추천 Fallback Level 2 구현` |
+| `fix` | 버그 수정 | `fix: CompletableFuture 타임아웃 누락 수정` |
+| `refactor` | 동작 변경 없는 구조 개선 | `refactor: 도메인 팩토리 메서드 of→reconstruct 리네이밍` |
+| `docs` | 문서만 변경 | `docs: architecture.md에 Rate Limiting 섹션 추가` |
+| `test` | 테스트 추가/수정 | `test: RecommendationPolicy 다양성 필터 단위 테스트` |
+| `chore` | 빌드, 설정, 의존성 | `chore: Resilience4j 의존성 추가` |
+
+### 규칙
+
+- 한글 또는 영어 통일 — 프로젝트 내 혼용하지 않는다
+- 제목은 50자 이내, 끝에 마침표 없음
+- 본문이 필요하면 빈 줄 후 작성 (WHY 중심)

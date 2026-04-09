@@ -57,7 +57,7 @@ public class UserAuthPersistenceAdapter implements UserAuthPort {
     @Transactional
     public Long saveOAuthUser(String oauthProvider, String oauthId, String nickname) {
         UserJpaEntity entity = UserJpaEntity.builder()
-                .email(null)
+                .email(oauthProvider + "_" + oauthId + "@oauth.local")
                 .passwordHash(null)
                 .nickname(nickname)
                 .oauthProvider(oauthProvider)

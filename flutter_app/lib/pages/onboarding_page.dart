@@ -19,7 +19,7 @@ class OnboardingPage extends StatefulWidget {
 
 class _OnboardingPageState extends State<OnboardingPage> {
   final List<String> _selectedEnums = []; // 백엔드 enum 값으로 관리
-  double _priceRange = 20000;
+  double _priceRange = 12000;
   bool _saving = false;
 
   void _toggleCategory(String enumValue) {
@@ -117,8 +117,8 @@ class _OnboardingPageState extends State<OnboardingPage> {
               Slider(
                 value: _priceRange,
                 min: 5000,
-                max: 50000,
-                divisions: 45,
+                max: 25000,
+                divisions: 20,
                 activeColor: AppColors.primary,
                 onChanged: (v) => setState(() => _priceRange = v),
               ),

@@ -29,7 +29,7 @@ class _ProfilePageState extends State<ProfilePage> {
   final _nicknameController = TextEditingController();
   List<String> _selectedCategories = [];
   List<String> _dislikedCategories = [];
-  double _priceRange = 20000;
+  double _priceRange = 12000;
   bool _soloPreference = false;
 
   @override
@@ -220,85 +220,39 @@ class _ProfilePageState extends State<ProfilePage> {
 
   Widget _buildProfile() {
     return AppCard(
-      child: Column(
+      child: Row(
         children: [
-          Row(
+          Container(
+            width: 64,
+            height: 64,
+            decoration: BoxDecoration(
+              color: AppColors.primaryLight,
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(Icons.person,
+                size: 32, color: AppColors.primary),
+          ),
+          const SizedBox(width: 16),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Container(
-                width: 64,
-                height: 64,
-                decoration: BoxDecoration(
-                  color: AppColors.primaryLight,
-                  shape: BoxShape.circle,
+              Text(
+                _userData?['nickname'] ?? '',
+                style: const TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
                 ),
-                child: const Icon(Icons.person,
-                    size: 32, color: AppColors.primary),
               ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: _editing
-                    ? TextField(
-                        controller: _nicknameController,
-                        decoration: const InputDecoration(
-                          hintText: '닉네임',
-                          isDense: true,
-                        ),
-                      )
-                    : Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            _userData?['nickname'] ?? '',
-                            style: const TextStyle(
-                              fontSize: 20,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            _userData?['email'] ?? '',
-                            style: const TextStyle(
-                              fontSize: 14,
-                              color: AppColors.mutedForeground,
-                            ),
-                          ),
-                        ],
-                      ),
+              const SizedBox(height: 4),
+              Text(
+                _userData?['email'] ?? '',
+                style: const TextStyle(
+                  fontSize: 14,
+                  color: AppColors.mutedForeground,
+                ),
               ),
             ],
           ),
-          const SizedBox(height: 16),
-          if (_editing)
-            GestureDetector(
-              onTap: () {
-                setState(() => _editing = false);
-                _loadData(); // 원래 데이터로 복원
-              },
-              child: const Row(
-                children: [
-                  Icon(Icons.arrow_back, size: 18, color: AppColors.mutedForeground),
-                  SizedBox(width: 8),
-                  Text(
-                    '수정 취소',
-                    style: TextStyle(color: AppColors.mutedForeground),
-                  ),
-                ],
-              ),
-            )
-          else
-            GestureDetector(
-              onTap: () => setState(() => _editing = true),
-              child: const Row(
-                children: [
-                  Icon(Icons.settings, size: 18, color: AppColors.primary),
-                  SizedBox(width: 8),
-                  Text(
-                    '프로필 수정',
-                    style: TextStyle(color: AppColors.primary),
-                  ),
-                ],
-              ),
-            ),
         ],
       ),
     );
@@ -308,46 +262,78 @@ class _ProfilePageState extends State<ProfilePage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Row(
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Icon(Icons.settings, size: 20),
-            SizedBox(width: 8),
-            Text(
-              '취향 설정',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+            const Row(
+              children: [
+                Icon(Icons.restaurant_menu, size: 20),
+                SizedBox(width: 8),
+                Text(
+                  '나의 취향',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                ),
+              ],
             ),
+            if (_editing)
+              GestureDetector(
+                onTap: () {
+                  setState(() => _editing = false);
+                  _loadData();
+                },
+                child: const Text(
+                  '취소',
+                  style: TextStyle(color: AppColors.mutedForeground),
+                ),
+              )
+            else
+              GestureDetector(
+                onTap: () => setState(() => _editing = true),
+                child: const Text(
+                  '수정하기',
+                  style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.w500),
+                ),
+              ),
           ],
         ),
         const SizedBox(height: 16),
 
-        if (_selectedCategories.isEmpty && !_editing)
-          AppCard(
-            backgroundColor: AppColors.primaryLight,
-            border: Border.all(color: AppColors.primary.withValues(alpha: 0.2)),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  '취향을 설정하면 더 정확한 추천을 받을 수 있어요!',
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: AppColors.mutedForeground,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                GestureDetector(
-                  onTap: () => setState(() => _editing = true),
-                  child: const Text(
-                    '지금 설정하기 →',
-                    style: TextStyle(
-                      color: AppColors.primary,
-                      fontWeight: FontWeight.w500,
+        // 닉네임
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: AppColors.accent,
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text('닉네임'),
+              if (_editing)
+                SizedBox(
+                  width: 150,
+                  child: TextField(
+                    controller: _nicknameController,
+                    textAlign: TextAlign.right,
+                    decoration: const InputDecoration(
+                      hintText: '닉네임 입력',
+                      isDense: true,
+                      border: InputBorder.none,
                     ),
                   ),
+                )
+              else
+                Text(
+                  _userData?['nickname'] ?? '',
+                  style: const TextStyle(
+                    color: AppColors.mutedForeground,
+                    fontWeight: FontWeight.w500,
+                  ),
                 ),
-              ],
-            ),
+            ],
           ),
+        ),
+        const SizedBox(height: 12),
 
         // 혼밥 토글
         Container(
@@ -421,10 +407,10 @@ class _ProfilePageState extends State<ProfilePage> {
               if (_editing) ...[
                 const SizedBox(height: 8),
                 Slider(
-                  value: _priceRange,
+                  value: _priceRange.clamp(5000, 25000),
                   min: 5000,
-                  max: 50000,
-                  divisions: 45,
+                  max: 25000,
+                  divisions: 20,
                   activeColor: AppColors.primary,
                   onChanged: (v) => setState(() => _priceRange = v),
                 ),

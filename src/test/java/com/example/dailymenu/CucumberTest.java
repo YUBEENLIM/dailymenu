@@ -18,7 +18,7 @@ import org.junit.platform.suite.api.Suite;
 )
 @ConfigurationParameter(
         key = Constants.PLUGIN_PROPERTY_NAME,
-        value = "pretty, html:build/reports/cucumber/index.html"
+        value = "pretty, json:build/reports/cucumber/cucumber.json, html:build/reports/cucumber/index.html"
 )
 public class CucumberTest {
 }

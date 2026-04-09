@@ -1,7 +1,9 @@
 package com.example.dailymenu.recommendation.application.result;
 
 import com.example.dailymenu.catalog.domain.MenuCategory;
+import com.example.dailymenu.recommendation.domain.MenuCandidate;
 import com.example.dailymenu.recommendation.domain.Recommendation;
+import com.example.dailymenu.recommendation.domain.ScoredRestaurant;
 import com.example.dailymenu.recommendation.domain.vo.FallbackLevel;
 
 import java.math.BigDecimal;
@@ -26,6 +28,46 @@ public record RecommendationResult(
         FallbackLevel fallbackLevel,
         String fallbackMessage
 ) {
+
+    /** 메뉴 단위 추천 결과 생성 */
+    public static RecommendationResult ofMenu(Recommendation saved, MenuCandidate candidate) {
+        return new RecommendationResult(
+                saved.getId(),
+                candidate.menu().getId(),
+                candidate.menu().getName(),
+                candidate.menu().getCategory(),
+                candidate.menu().getPrice(),
+                candidate.menu().getCalorie(),
+                candidate.restaurant().getId(),
+                candidate.restaurant().getName(),
+                candidate.restaurant().getAddress(),
+                candidate.distanceMeters(),
+                candidate.restaurant().isAllowSolo(),
+                saved.getRecommendationScore(),
+                saved.getFallbackLevel(),
+                saved.getFallbackLevel() != null ? saved.getFallbackLevel().getMessage() : null
+        );
+    }
+
+    /** 식당 단위 Fallback 추천 결과 생성 */
+    public static RecommendationResult ofRestaurantOnly(Recommendation saved, ScoredRestaurant scored) {
+        return new RecommendationResult(
+                saved.getId(),
+                null,
+                null,
+                scored.restaurant().getCategory(),
+                0,
+                null,
+                scored.restaurant().getId(),
+                scored.restaurant().getName(),
+                scored.restaurant().getAddress(),
+                scored.distanceMeters(),
+                scored.restaurant().isAllowSolo(),
+                saved.getRecommendationScore(),
+                saved.getFallbackLevel(),
+                saved.getFallbackLevel() != null ? saved.getFallbackLevel().getMessage() : null
+        );
+    }
 
     /**
      * 멱등성 COMPLETED 캐시 응답 — DB 추천 데이터 기반 재구성.

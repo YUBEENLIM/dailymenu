@@ -88,6 +88,11 @@ public class UserJpaEntity {
     @OneToOne(mappedBy = "user", fetch = FetchType.LAZY, cascade = CascadeType.ALL)
     private UserPreferencesJpaEntity preferences;
 
+    /** 신규 사용자 최초 취향 설정 시 cascade 저장을 위해 양방향 연결 */
+    public void assignPreferences(UserPreferencesJpaEntity preferences) {
+        this.preferences = preferences;
+    }
+
     // 1:N — UserProfile 조회 시 반드시 Fetch Join 사용. N+1 주의.
     @OneToMany(mappedBy = "user", fetch = FetchType.LAZY, cascade = CascadeType.ALL, orphanRemoval = true)
     private List<UserRestrictionJpaEntity> restrictions = new ArrayList<>();

@@ -14,7 +14,7 @@ import java.util.List;
  * Profile "local" 에서만 활성화된다. 운영 환경에서는 KakaoPlaceAdapter 가 @Primary 로 동작.
  */
 @Component
-@Profile("local & !kakao")
+@Profile("(local | docker) & !kakao")
 @Slf4j
 public class StubPlaceAdapter implements PlacePort {
 

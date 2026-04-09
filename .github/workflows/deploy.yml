@@ -28,4 +28,4 @@ jobs:
             docker-compose down app
             docker-compose up -d --build app
             echo "Deploy completed at $(date)"
-          timeout: 300
+          timeout: 300s

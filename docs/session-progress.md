@@ -230,8 +230,54 @@
 - 전체 테스트 통과 확인 (Health Check + 추천 Happy Path)
 - 오늘 변경사항(카카오 OAuth, Flutter)이 기존 BDD 테스트에 영향 없음 확인
 
+## 2026-04-09
+
+### 아티클 분석 및 차별점 도출
+- 3개 아티클(배민 실시간 추천, 화해 서킷브레이커, Meegle 위치기반 추천) 분석
+- 프로젝트 차별점 3가지 도출: 거절 학습, 전략 서킷브레이커, 세션 컨텍스트 기반 추천
+- 직장인 점심시간 통계 조사 (통계청 2024 생활시간조사, 트렌드모니터 2024)
+  - 메뉴 선택 기준: 거리(57.5%) > 가격(41.6%) > 빠른 제공(38.8%) > 입맛(37.1%)
+  - 절대 시각 기반 추천은 변별력 없음 → 세션 경과 시간 기반으로 수정
+
+### 온보딩 취향 저장 버그 수정
+- **원인**: UserProfilePersistenceAdapter에서 신규 사용자 preferences 생성 시 user.preferences에 연결하지 않아 cascade 저장 누락
+- **수정**: UserJpaEntity.assignPreferences() 추가, 어댑터에서 호출
+- 마이페이지 취향 수정 반영 안 되는 버그도 동일 원인으로 함께 해결
+
+### Flutter 마이페이지 UI 개선
+- 프로필 수정 + 취향 설정 → '나의 취향' 섹션으로 통합
+- 닉네임 수정을 나의 취향 섹션 내부로 이동
+- 가격 슬라이더: 5,000~50,000 → 5,000~25,000원, 기본값 12,000원 (온보딩도 동일 적용)
+
+### 백엔드 리팩토링 — 객체 간 통신 원칙 적용
+- RecommendationUseCase.execute(): 58줄 → 13줄
+  - buildCandidates() → MenuCandidate.buildFrom() 도메인 팩토리로 이동
+  - toResult() → RecommendationResult.ofMenu(), ofRestaurantOnly() 팩토리로 이동
+  - CompletableFuture 병렬 조회 제거 → 단순 순차 호출로 변경
+- RecommendationFacade: hashRequest() → RecommendationCommand.requestHash()로 이동
+- MealHistoryUseCase: 검증 로직 → MealHistoryCommand.validateDirectInput()으로 이동
+- UserProfilePersistenceAdapter: Regex Pattern static 추출, Collectors.joining() 성능 최적화
+
+### conventions.md / CLAUDE.md 규칙 추가
+- conventions.md §1: '서비스 레이어 가독성' 섹션 추가 (public 메서드 10줄 이내, 영어 읽듯이)
+- conventions.md §1: '객체 간 통신 원칙' 섹션 추가 (private 메서드 대신 도메인 객체 위임, 허용 예외 명시)
+- CLAUDE.md §4: 메서드 길이 기준 변경 (서비스 레이어 10줄 / 그 외 20줄)
+
+### cucumber-reporting 설정
+- build.gradle: cucumber-reporting 5.8.2 buildscript 의존성 + cucumberReport 태스크 추가
+- CucumberTest: JSON 플러그인 추가 (json:build/reports/cucumber/cucumber.json)
+- 리포트 경로: build/reports/cucumber-html/cucumber-html-reports/overview-features.html
+
+### Git / PR
+- feature/frontend: Flutter UI 변경만 커밋/push → main PR 생성
+- feature/backend: 버그 수정 + 리팩토링 커밋 분리하여 push → main PR 생성/머지
+  - 커밋 1: fix: 온보딩 취향 저장 버그 수정 및 cucumber-reporting 설정
+  - 커밋 2: refactor: 서비스 레이어 객체 간 통신 원칙 적용 및 가독성 개선
+
+### BDD 테스트
+- Docker + Testcontainers 환경에서 전체 테스트 통과 확인
+- cucumber-reporting HTML 리포트 정상 생성 확인
+
 ## 미완료
-- **온보딩 → 마이페이지 데이터 동기화 안 됨** — 온보딩에서 설정한 취향이 마이페이지에 반영되지 않음. PUT /users/me/preferences 호출은 되나 실제 저장 여부 확인 필요 (백엔드 로그 확인 또는 디버그 로깅 추가)
-- **마이페이지 취향 수정 반영 안 됨** — 혼밥 선호, 가격 범위, 선호 카테고리 수정 후 저장해도 재로드 시 원래 값으로 돌아옴. 닉네임/싫어하는 카테고리는 정상 동작
 - CLAUDE.md 핵심 클래스 파일 경로 가이드 추가
 - conventions.md 테스트 체크리스트 추가

@@ -8,3 +8,7 @@ spring:
     redis:
       host: cache
       port: 6379
+
+kakao:
+  oauth:
+    redirect-uri: http://54.204.87.58:8080/auth/kakao/callback

@@ -70,6 +70,48 @@ throw new RuntimeException("not found");
 - **20라인을 넘기면 분리를 고려**해라.
 - 하나의 메서드는 **하나의 책임**만 가진다.
 
+### 서비스 레이어 가독성
+
+- UseCase/Facade의 **public 메서드는 10줄 이내**로 유지한다.
+- 위에서 아래로 읽으면 비즈니스 흐름이 **영어 문장처럼 읽혀야** 한다.
+
+```java
+// ✅ 흐름이 한눈에 읽힌다
+@Transactional
+public RecommendationResult execute(RecommendationCommand command) {
+    UserProfile userProfile = loadUserProfile(command.userId());
+    List<Restaurant> restaurants = resolveRestaurants(nearbyRestaurants);
+    List<MenuCandidate> candidates = MenuCandidate.buildFrom(restaurants, menus, distanceMap);
+
+    return policy.recommend(candidates, userProfile, mealHistories, recHistories)
+            .map(scored -> saveMenuResult(command, scored))
+            .orElseGet(() -> tryRestaurantFallback(...));
+}
+
+// ❌ 50줄짜리 메서드 안에 Stream 변환, 조건문, 저장 로직이 뒤섞임
+```
+
+### 객체 간 통신 원칙
+
+- UseCase/Facade에서 **private 메서드로 도메인 로직을 구현하지 않는다.**
+- 데이터 변환, 검증, 조합은 **도메인 객체 자신의 메서드**로 위임한다.
+- UseCase는 객체 간 통신을 조율(orchestration)하는 역할만 한다.
+
+```java
+// ✅ 도메인 객체가 자기 책임을 수행
+List<MenuCandidate> candidates = MenuCandidate.buildFrom(restaurants, menus, distanceMap);
+String hash = command.requestHash();
+command.validateDirectInput();
+
+// ❌ UseCase가 private 메서드로 도메인 로직을 직접 수행
+private List<MenuCandidate> buildCandidates(...) { /* Stream 변환 로직 */ }
+private String hashRequest(...) { /* 해시 계산 */ }
+```
+
+**허용 예외:**
+- Context 간 변환(place → catalog 등)은 UseCase의 orchestration 책임이므로 private 메서드 허용
+- Port 호출을 감싼 단순 위임 메서드(`loadUserProfile` 등)는 가독성을 위해 허용
+
 ---
 
 ## 2. 헥사고날 레이어별 규칙

@@ -99,7 +99,7 @@
 - DTO는 record 사용. Entity 직접 반환 금지.
 - 커스텀 예외 사용 (`BusinessException` + `ErrorCode`). `RuntimeException` 직접 사용 금지.
 - Domain 클래스에 `@Entity`, `@RestController` 등 인프라 어노테이션 금지.
-- 메서드는 하나의 책임만, 20라인 넘으면 분리.
+- 메서드는 하나의 책임만. 서비스 레이어 public 메서드는 10줄 이내, 그 외는 20줄 넘으면 분리.
 - Optional은 `orElseThrow` 사용. `isPresent()` + `get()` 조합 금지.
 - 결과 없으면 빈 컬렉션 반환 (`List.of()`). null 반환 금지.
 

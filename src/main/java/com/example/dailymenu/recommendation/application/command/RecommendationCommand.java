@@ -1,5 +1,7 @@
 package com.example.dailymenu.recommendation.application.command;
 
+import java.util.Objects;
+
 /**
  * 추천 요청 커맨드.
  * Controller → Facade → UseCase 로 전달되는 Application 계층 입력 모델.
@@ -10,4 +12,9 @@ public record RecommendationCommand(
         double latitude,
         double longitude,
         String idempotencyKey
-) {}
+) {
+    /** 멱등성 키 중복 요청 시 내용 변조 감지용 해시 */
+    public String requestHash() {
+        return String.valueOf(Objects.hash(latitude, longitude));
+    }
+}

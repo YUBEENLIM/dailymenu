@@ -20,10 +20,14 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
+import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 @Component
 @RequiredArgsConstructor
 public class UserProfilePersistenceAdapter implements UserProfileRepositoryPort {
+
+    private static final Pattern JSON_BRACKET_QUOTE = Pattern.compile("[\\[\\]\"\\s]");
 
     private final UserJpaRepository userJpaRepository;
 
@@ -49,13 +53,16 @@ public class UserProfilePersistenceAdapter implements UserProfileRepositoryPort 
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
 
         String categoriesJson = preferredCategories.isEmpty() ? "[]"
-                : "[" + String.join(",", preferredCategories.stream().map(c -> "\"" + c.name() + "\"").toList()) + "]";
+                : preferredCategories.stream()
+                        .map(c -> "\"" + c.name() + "\"")
+                        .collect(Collectors.joining(",", "[", "]"));
 
         if (user.getPreferences() != null) {
             user.getPreferences().update(preferSolo, minPrice, maxPrice, categoriesJson);
         } else {
             UserPreferencesJpaEntity prefs = UserPreferencesJpaEntity.createDefault(user);
             prefs.update(preferSolo, minPrice, maxPrice, categoriesJson);
+            user.assignPreferences(prefs);
             userJpaRepository.save(user);
         }
     }
@@ -101,7 +108,7 @@ public class UserProfilePersistenceAdapter implements UserProfileRepositoryPort 
 
     private List<MenuCategory> parseCategories(String json) {
         if (json == null || json.isBlank()) return List.of();
-        String cleaned = json.replaceAll("[\\[\\]\"\\s]", "");
+        String cleaned = JSON_BRACKET_QUOTE.matcher(json).replaceAll("");
         if (cleaned.isEmpty()) return List.of();
         return Arrays.stream(cleaned.split(","))
                 .filter(s -> !s.isEmpty())

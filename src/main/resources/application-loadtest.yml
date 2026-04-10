@@ -1,0 +1,15 @@
+# 부하 테스트 전용 프로필
+# 사용법: SPRING_PROFILES_ACTIVE=docker,kakao,loadtest
+
+# Rate Limit 해제 (부하 테스트 시 Rate Limit이 병목이면 테스트 의미 없음)
+rate-limit:
+  apis:
+    recommendations:
+      per-minute: 100000
+      per-hour: 0
+    meal-histories:
+      per-minute: 100000
+      per-hour: 0
+    restaurants:
+      per-minute: 100000
+      per-hour: 0

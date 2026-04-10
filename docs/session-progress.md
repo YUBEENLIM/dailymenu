@@ -278,6 +278,51 @@
 - Docker + Testcontainers 환경에서 전체 테스트 통과 확인
 - cucumber-reporting HTML 리포트 정상 생성 확인
 
+### AWS EC2 배포
+- EC2 인스턴스 생성 (t2.small, Amazon Linux 2023, 20GB gp3)
+  - 보안 그룹: SSH(22) 전체 공개, 8080 전체 공개
+  - 키 페어: dailymenu-key.pem (RSA), ~/.ssh/ 보관
+- Docker + Docker Compose + Buildx 설치
+- docker-compose.yml에 app 서비스 추가 (Spring Boot 컨테이너)
+- GitHub에서 코드 clone → docker-compose up으로 배포
+- StubPlaceAdapter @Profile에 docker 프로필 추가 (PlacePort 빈 누락 수정)
+- 서버 주소: http://54.204.87.58:8080
+- Swagger UI: http://54.204.87.58:8080/swagger-ui/index.html
+
+### 카카오 연동 (AWS 환경)
+- EC2 환경변수로 KAKAO_REST_API_KEY 관리 (~/.bashrc)
+- docker-compose에서 ${KAKAO_REST_API_KEY}로 참조
+- SPRING_PROFILES_ACTIVE: docker,kakao 로 카카오 프로필 활성화
+- application-docker.yml에 카카오 OAuth redirect-uri AWS 주소로 오버라이드
+- UserAuthPersistenceAdapter: OAuth 사용자 email NOT NULL 제약 대응 (provider_oauthId@oauth.local)
+- Flutter kakao_login_page.dart: redirect_uri를 ApiClient.baseUrl 기반 동적 구성
+- 카카오 Developers 콘솔에 AWS redirect URI 등록
+- 카카오맵 API + 카카오 로그인 정상 동작 확인
+
+### CI/CD 구축 (GitHub Actions)
+- IAM 사용자 생성 (dailymenu-deployer): EC2, RDS, ECR, ELB 권한
+- GitHub Secrets 등록: AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, EC2_HOST, EC2_USERNAME, EC2_SSH_KEY
+- .github/workflows/deploy.yml 생성
+  - 트리거: main, feature/backend push (docs, flutter_app, md 제외)
+  - 동작: appleboy/ssh-action으로 EC2 SSH → git pull → docker-compose 재빌드
+  - 타임아웃: 300초
+- EC2 보안 그룹 SSH(22) 전체 공개로 변경 (GitHub Actions 서버 접속 허용)
+- CI/CD 정상 동작 확인 (Actions 초록불)
+
+### Flutter 앱 AWS 연결
+- API_URL=http://54.204.87.58:8080 으로 빌드하여 핸드폰 설치
+- USB 해제 후에도 앱 정상 동작 확인 (Wi-Fi 무관, 24시간 접속 가능)
+
+### Git / PR
+- feature/frontend: Flutter UI 변경만 커밋/push → main PR 생성
+- feature/backend: 버그 수정 + 리팩토링 커밋 분리하여 push → main PR 생성/머지
+  - 커밋 1: fix: 온보딩 취향 저장 버그 수정 및 cucumber-reporting 설정
+  - 커밋 2: refactor: 서비스 레이어 객체 간 통신 원칙 적용 및 가독성 개선
+- feature/backend: AWS 배포 관련 수정 → main PR 생성/머지
+  - fix: docker 프로필 PlacePort 빈 누락
+  - fix: 카카오 로그인 AWS 배포 대응
+- feature/backend: CI/CD 워크플로우 추가
+
 ## 미완료
 - CLAUDE.md 핵심 클래스 파일 경로 가이드 추가
 - conventions.md 테스트 체크리스트 추가

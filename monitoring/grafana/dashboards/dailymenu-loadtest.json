@@ -1,0 +1,181 @@
+{
+  "dashboard": {
+    "id": null,
+    "uid": "dailymenu-loadtest",
+    "title": "DailyMenu - Load Test Dashboard",
+    "tags": ["dailymenu", "loadtest"],
+    "timezone": "Asia/Seoul",
+    "refresh": "5s",
+    "time": { "from": "now-15m", "to": "now" },
+    "panels": [
+      {
+        "title": "HTTP Request Rate (req/s)",
+        "type": "timeseries",
+        "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+        "targets": [
+          {
+            "expr": "rate(http_server_requests_seconds_count{application=\"dailymenu\"}[30s])",
+            "legendFormat": "{{method}} {{uri}} [{{status}}]"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": { "unit": "reqps" }
+        }
+      },
+      {
+        "title": "HTTP Response Time p99 (ms)",
+        "type": "timeseries",
+        "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.99, rate(http_server_requests_seconds_bucket{application=\"dailymenu\"}[30s]))",
+            "legendFormat": "{{method}} {{uri}}"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": { "unit": "s" }
+        }
+      },
+      {
+        "title": "HTTP Response Time avg (ms)",
+        "type": "timeseries",
+        "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+        "targets": [
+          {
+            "expr": "rate(http_server_requests_seconds_sum{application=\"dailymenu\"}[30s]) / rate(http_server_requests_seconds_count{application=\"dailymenu\"}[30s])",
+            "legendFormat": "{{method}} {{uri}}"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": { "unit": "s" }
+        }
+      },
+      {
+        "title": "HTTP Error Rate",
+        "type": "timeseries",
+        "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+        "targets": [
+          {
+            "expr": "rate(http_server_requests_seconds_count{application=\"dailymenu\",status=~\"5..\"}[30s])",
+            "legendFormat": "{{status}} {{uri}}"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": { "unit": "reqps" }
+        }
+      },
+      {
+        "title": "Tomcat Threads",
+        "type": "timeseries",
+        "gridPos": { "h": 8, "w": 12, "x": 0, "y": 16 },
+        "targets": [
+          {
+            "expr": "tomcat_threads_current_threads{application=\"dailymenu\"}",
+            "legendFormat": "current"
+          },
+          {
+            "expr": "tomcat_threads_busy_threads{application=\"dailymenu\"}",
+            "legendFormat": "busy"
+          },
+          {
+            "expr": "tomcat_threads_config_max_threads{application=\"dailymenu\"}",
+            "legendFormat": "max"
+          }
+        ]
+      },
+      {
+        "title": "HikariCP Connection Pool",
+        "type": "timeseries",
+        "gridPos": { "h": 8, "w": 12, "x": 12, "y": 16 },
+        "targets": [
+          {
+            "expr": "hikaricp_connections_active{application=\"dailymenu\"}",
+            "legendFormat": "active"
+          },
+          {
+            "expr": "hikaricp_connections_idle{application=\"dailymenu\"}",
+            "legendFormat": "idle"
+          },
+          {
+            "expr": "hikaricp_connections_max{application=\"dailymenu\"}",
+            "legendFormat": "max"
+          },
+          {
+            "expr": "hikaricp_connections_pending{application=\"dailymenu\"}",
+            "legendFormat": "pending (waiting)"
+          }
+        ]
+      },
+      {
+        "title": "JVM Heap Memory",
+        "type": "timeseries",
+        "gridPos": { "h": 8, "w": 12, "x": 0, "y": 24 },
+        "targets": [
+          {
+            "expr": "jvm_memory_used_bytes{application=\"dailymenu\",area=\"heap\"}",
+            "legendFormat": "used ({{id}})"
+          },
+          {
+            "expr": "jvm_memory_max_bytes{application=\"dailymenu\",area=\"heap\"}",
+            "legendFormat": "max ({{id}})"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": { "unit": "bytes" }
+        }
+      },
+      {
+        "title": "JVM GC Pause",
+        "type": "timeseries",
+        "gridPos": { "h": 8, "w": 12, "x": 12, "y": 24 },
+        "targets": [
+          {
+            "expr": "rate(jvm_gc_pause_seconds_sum{application=\"dailymenu\"}[30s])",
+            "legendFormat": "{{action}} {{cause}}"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": { "unit": "s" }
+        }
+      },
+      {
+        "title": "CPU Usage",
+        "type": "timeseries",
+        "gridPos": { "h": 8, "w": 12, "x": 0, "y": 32 },
+        "targets": [
+          {
+            "expr": "process_cpu_usage{application=\"dailymenu\"}",
+            "legendFormat": "app CPU"
+          },
+          {
+            "expr": "system_cpu_usage{application=\"dailymenu\"}",
+            "legendFormat": "system CPU"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": { "unit": "percentunit", "max": 1 }
+        }
+      },
+      {
+        "title": "Active HTTP Connections",
+        "type": "stat",
+        "gridPos": { "h": 8, "w": 12, "x": 12, "y": 32 },
+        "targets": [
+          {
+            "expr": "tomcat_threads_busy_threads{application=\"dailymenu\"}",
+            "legendFormat": "busy threads"
+          },
+          {
+            "expr": "hikaricp_connections_active{application=\"dailymenu\"}",
+            "legendFormat": "DB active"
+          },
+          {
+            "expr": "hikaricp_connections_pending{application=\"dailymenu\"}",
+            "legendFormat": "DB pending"
+          }
+        ]
+      }
+    ]
+  },
+  "overwrite": true
+}

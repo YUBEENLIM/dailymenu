@@ -1,5 +1,7 @@
 import http from 'k6/http';
 import { check, sleep } from 'k6';
+import { textSummary } from 'https://jslib.k6.io/k6-summary/0.1.0/index.js';
+import { htmlReport } from 'https://raw.githubusercontent.com/benc-uk/k6-reporter/main/dist/bundle.js';
 
 // 서버 정상 동작 확인용 단독 실행 스크립트
 // 사용법: k6 run --env BASE_URL=http://34.224.7.22:8080 k6/smoke-test.js
@@ -89,4 +91,12 @@ export default function () {
     console.log(`History: ${historyRes.status}`);
 
     console.log('\n--- Smoke test complete ---');
+}
+
+export function handleSummary(data) {
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+    return {
+        [`k6/reports/smoke-test-${timestamp}.html`]: htmlReport(data),
+        stdout: textSummary(data, { indent: '  ', enableColors: true }),
+    };
 }

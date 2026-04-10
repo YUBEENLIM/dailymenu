@@ -1,6 +1,8 @@
 import http from 'k6/http';
 import { check, sleep } from 'k6';
 import { Rate, Trend } from 'k6/metrics';
+import { textSummary } from 'https://jslib.k6.io/k6-summary/0.1.0/index.js';
+import { htmlReport } from 'https://raw.githubusercontent.com/benc-uk/k6-reporter/main/dist/bundle.js';
 
 // ── 설정 ──────────────────────────────────────────────
 const BASE_URL = __ENV.BASE_URL || 'http://34.224.7.22:8080';
@@ -206,6 +208,16 @@ export function lunchScenario(data) {
 
     // 다음 반복까지 대기 (2~5초 — 실제 사용자 행동 시뮬레이션)
     sleep(Math.random() * 3 + 2);
+}
+
+// ── Summary: HTML + 터미널 리포트 ─────────────────────
+export function handleSummary(data) {
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+    return {
+        [`k6/reports/load-test-${timestamp}.html`]: htmlReport(data),
+        [`k6/reports/load-test-${timestamp}.json`]: JSON.stringify(data, null, 2),
+        stdout: textSummary(data, { indent: '  ', enableColors: true }),
+    };
 }
 
 // ── Teardown ────────────────────────────────────────

@@ -323,6 +323,45 @@
   - fix: 카카오 로그인 AWS 배포 대응
 - feature/backend: CI/CD 워크플로우 추가
 
+## 2026-04-10
+
+### EC2 인스턴스 변경
+- t2.small → t3.medium 변경 (부하 테스트 대비)
+- 퍼블릭 IP 변경: 54.204.87.58 → 34.224.7.22
+- Elastic IP 미사용 (비용 절감, IP 변경 시 수동 수정)
+- GitHub Secrets (EC2_HOST), 카카오 Developers 콘솔 redirect URI 수정
+
+### Rate Limit 설정 외부화
+- RateLimitProperties 신규 생성 (@ConfigurationProperties)
+- RedisRateLimitAdapter: 하드코딩 제거 → Properties 주입으로 변경
+- application.yml: 운영 기본값 추가 (추천: 분당 5, 시간당 20)
+- application-local.yml: 로컬 개발용 완화 (분당 100, 시간당 500)
+- application-loadtest.yml 신규: 부하 테스트용 Rate Limit 사실상 해제
+- application-docker.yml: 카카오 redirect URI 새 IP 반영
+
+### k6 부하 테스트 스크립트 작성
+- k6/smoke-test.js: 서버 정상 동작 확인용 (VU 1명, 1회)
+- k6/load-test.js: 3단계 부하 테스트 (총 ~18분)
+  - Smoke: VU 2명, 30초
+  - Ramp-up: VU 10→30→50→80→100→50, 10분 (점심 피크 시뮬레이션)
+  - Stress: VU 50→150→200→0, 6분 (극한 한계 탐색)
+- 시나리오: 회원가입 → 로그인 → 추천 → 채택/거절(7:3) → 이력 조회
+- 성능 기준: p99 5초 이내, 에러율 1% 미만 (architecture.md §8)
+- 커스텀 메트릭: 추천/채택/거절/이력 조회별 응답 시간 분리 측정
+
+### 환경 설정
+- k6 v1.7.1 설치 (Windows msi 인스톨러)
+- PATH 등록: C:\Program Files\k6
+
+### Git / PR
+- feature/backend → main PR 생성: Rate Limit 외부화 + k6 스크립트
+
+### 부하 테스트 실행 전 남은 작업
+- PR 머지 → CI/CD 자동 배포
+- EC2 docker-compose에서 SPRING_PROFILES_ACTIVE에 loadtest 프로필 추가
+- k6 smoke-test.js로 서버 정상 동작 확인
+- k6 load-test.js로 부하 테스트 실행
+
 ## 미완료
 - CLAUDE.md 핵심 클래스 파일 경로 가이드 추가
 - conventions.md 테스트 체크리스트 추가

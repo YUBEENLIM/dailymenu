@@ -49,6 +49,10 @@ kafka-data
 ### VS Code ###
 .vscode/
 
+# k6 테스트 리포트 (로컬 생성)
+k6/reports/
+k6/result-*.json
+
 # 환경 설정 (API 키, DB 비밀번호 등 민감 정보)
 application-local.yml
 application-local.yaml

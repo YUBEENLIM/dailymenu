@@ -356,12 +356,95 @@
 ### Git / PR
 - feature/backend → main PR 생성: Rate Limit 외부화 + k6 스크립트
 
-### 부하 테스트 실행 전 남은 작업
-- PR 머지 → CI/CD 자동 배포
-- EC2 docker-compose에서 SPRING_PROFILES_ACTIVE에 loadtest 프로필 추가
-- k6 smoke-test.js로 서버 정상 동작 확인
-- k6 load-test.js로 부하 테스트 실행
+### EC2 서울 리전 이전
+- 원인: 미국 리전(us-east-1)에서 카카오 API 서버(한국)까지 연결 지연 770ms → connection timeout 500ms 초과
+- 서울 리전(ap-northeast-2)에 새 EC2 t3.medium 생성
+- 퍼블릭 IP: 34.224.7.22 → 13.209.70.9
+- 키 페어: dailymenu-key-seoul.pem (리전별로 별도 관리)
+- Docker + Docker Compose + Buildx 설치, 코드 clone, 컨테이너 빌드
+- GitHub Secrets (EC2_HOST, EC2_SSH_KEY), 카카오 Developers redirect URI 수정
+- 기존 북미 EC2 인스턴스 삭제
+
+### Prometheus + Grafana 모니터링 구축
+- Spring Boot Actuator + Micrometer Prometheus 의존성 추가
+- actuator/prometheus 엔드포인트 활성화, JwtFilter public 경로 추가
+- monitoring/prometheus.yml: 5초 간격 스크래핑
+- Grafana 대시보드 자동 프로비저닝 (10개 패널)
+  - HTTP Request Rate, Response Time avg/max (by URI)
+  - HTTP Error Rate (5xx)
+  - JVM Threads (live/daemon/peak)
+  - HikariCP Connection Pool (active/idle/max/pending/total)
+  - JVM Heap Memory, GC Pause
+  - CPU Usage (app/system)
+- docker-compose에 Prometheus + Grafana 컨테이너 추가
+- EC2 보안 그룹에 Grafana 포트(3000) 추가
+- Grafana 접속: http://13.209.70.9:3000 (admin/dailymenu)
+
+### k6 HTML 리포트 기능 추가
+- k6-reporter로 테스트 결과 HTML 파일 자동 생성
+- smoke-test.js, load-test.js에 handleSummary() 추가
+- 리포트 저장 경로: k6/reports/ (gitignore 추가)
+
+### 부하 테스트 실행 및 결과
+
+#### Test 1: VU 200 (Baseline) — HikariCP 10, Tomcat 기본
+- **모든 threshold 통과**
+- p99: 87.9ms, 에러율: 0.02% (6건), RPS: 29.8
+- 추천 API avg: 75ms, p95: 99ms
+- 에러 6건: 카카오 API 간헐적 타임아웃 (R004, P002)
+- 서버 여유 충분, 병목 미발견
+
+#### Test 2: VU 1000 — HikariCP 10, Tomcat 기본
+- **모든 threshold 통과 (근접)**
+- p99: 4,400ms (목표 5초에 거의 도달), 에러율: 0.09% (116건), RPS: 180
+- 추천 API avg: 493ms, p95: 1,790ms
+- Grafana 확인: CPU 90% 이상 (VU 700~), HikariCP pending 최대 190
+- **1차 병목: CPU (2 vCPU 한계)**
+
+#### Test 3: VU 1000 — HikariCP 30으로 증가, Tomcat 기본
+- **에러율 45.9%로 악화**
+- 에러 50,734건: 카카오 API 연결 실패 (P001)
+- 원인: DB 커넥션 풀 확대 → 카카오 API 동시 호출 폭증 → 카카오 과부하
+- **발견: HikariCP 10이 카카오 API에 대한 자연 throttling 역할**
+- HikariCP pending 190은 독립 병목이 아니라 CPU 포화의 결과
+
+#### Test 4: VU 1000 — HikariCP 10, Tomcat max-threads 150
+- **에러율 98.5%로 테스트 무효**
+- 에러 135,712건: 카카오 API 429 TOO_MANY_REQUESTS
+- 원인: 이전 테스트(Test 3)에서 5만 건 이상 호출로 카카오 Rate Limit 걸림
+- Tomcat max-threads 150 효과 미확인 → 카카오 Rate Limit 해제 후 재테스트 필요
+
+### Bottleneck Analysis 최종 결론
+```
+1위: CPU (t3.medium 2 vCPU 한계) — VU 700 이상에서 90% 초과
+2위: 카카오맵 API 동시 호출 제한 — 커넥션 풀 확대 시 대량 실패 확인
+3위: HikariCP pending 190 — CPU 포화의 결과이지 독립 병목 아님 (검증 완료)
+```
+
+### Tomcat max-threads 제한 적용
+- application.yml: server.tomcat.threads.max=150, accept-count=100
+- CPU 과포화 방어 목적 (스레드 무제한 생성 230개 → 150개 제한)
+- 효과 미검증 (카카오 Rate Limit으로 재테스트 필요)
+
+### load-test-report.md 작성
+- docs/load-test-report.md: 전체 부하 테스트 결과 + Bottleneck Analysis + 개선 방안
+- 3회 테스트 비교 분석, HikariCP 검증 테스트 결과 포함
+
+### Flutter 앱 서울 EC2 재배포
+- API_URL=http://13.209.70.9:8080 으로 핸드폰 재빌드
+- 앱 동작 확인 (추천 외 기능 정상, 추천은 카카오 Rate Limit으로 일시 실패)
+
+### Git / PR
+- feature/backend: Rate Limit 외부화 + k6 스크립트 → main PR 머지
+- feature/backend: Prometheus + Grafana + k6 HTML 리포트 push
+
+### 서비스 주소
+- 서버: http://13.209.70.9:8080
+- Swagger: http://13.209.70.9:8080/swagger-ui/index.html
+- Grafana: http://13.209.70.9:3000 (admin/dailymenu)
 
 ## 미완료
+- Tomcat max-threads 150 효과 재테스트 (카카오 Rate Limit 해제 후)
+- 카카오맵 API 응답 Redis 캐싱 적용 (개선 우선순위 1번)
 - CLAUDE.md 핵심 클래스 파일 경로 가이드 추가
 - conventions.md 테스트 체크리스트 추가

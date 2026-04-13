@@ -44,7 +44,7 @@ services:
     ports:
       - "8080:8080"
     environment:
-      SPRING_PROFILES_ACTIVE: docker,kakao
+      SPRING_PROFILES_ACTIVE: docker,kakao,loadtest
       KAKAO_REST_API_KEY: ${KAKAO_REST_API_KEY}
     depends_on:
       db:

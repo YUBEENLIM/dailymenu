@@ -43,8 +43,8 @@ management:
 rate-limit:
   apis:
     recommendations:
-      per-minute: 5
-      per-hour: 20
+      per-minute: 10
+      per-hour: 100
     meal-histories:
       per-minute: 10
       per-hour: 0

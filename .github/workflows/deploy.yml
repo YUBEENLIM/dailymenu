@@ -4,9 +4,9 @@ on:
   push:
     branches: [ main, feature/backend ]
     paths-ignore:
-      - 'docs/**'
       - 'flutter_app/**'
       - '*.md'
+      - '!CLAUDE.md'
 
 jobs:
   deploy:
@@ -26,6 +26,7 @@ jobs:
             git pull origin main
             source ~/.bashrc
             docker-compose down app
-            docker-compose up -d --build app
+            docker-compose build --no-cache app
+            docker-compose up -d app
             echo "Deploy completed at $(date)"
           timeout: 300s

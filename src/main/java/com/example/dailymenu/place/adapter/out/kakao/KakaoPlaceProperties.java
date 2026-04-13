@@ -12,6 +12,7 @@ public record KakaoPlaceProperties(
         String baseUrl,
         int connectionTimeout,
         int readTimeout,
-        int defaultRadius
+        int defaultRadius,
+        int cacheTtlSeconds  // 캐시 TTL (초). 0이면 캐시 비활성화
 ) {
 }

@@ -3,12 +3,17 @@ package com.example.dailymenu.place.adapter.out.kakao;
 import com.example.dailymenu.place.adapter.out.kakao.dto.KakaoSearchResponse;
 import com.example.dailymenu.place.domain.NearbyRestaurant;
 import com.example.dailymenu.place.domain.port.PlacePort;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Profile;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Component;
 
+import java.time.Duration;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 
 /**
@@ -23,16 +28,47 @@ import java.util.Set;
 @Slf4j
 public class KakaoPlaceAdapter implements PlacePort {
 
-    /** 식사 추천 서비스 목적에 맞지 않는 카테고리 제외 */
     private static final Set<String> EXCLUDED_KEYWORDS = Set.of(
             "카페", "제과", "베이커리", "디저트", "술집", "호프", "바(BAR)", "주점", "라운지"
     );
+    private static final String CACHE_KEY_PREFIX = "place:nearby:";
+    private static final String CACHE_LOCK_PREFIX = "place:lock:";
+    private static final TypeReference<List<NearbyRestaurant>> LIST_TYPE = new TypeReference<>() {};
 
     private final KakaoPlaceClient kakaoPlaceClient;
     private final KakaoPlaceProperties properties;
+    private final StringRedisTemplate redisTemplate;
+    private final ObjectMapper objectMapper;
 
     @Override
     public List<NearbyRestaurant> findNearby(double latitude, double longitude) {
+        String cacheKey = buildCacheKey(latitude, longitude);
+        List<NearbyRestaurant> cached = getFromCache(cacheKey);
+        if (cached != null) return cached;
+        return fetchAndCache(cacheKey, latitude, longitude);
+    }
+
+    /** 캐시 MISS → stampede 방지 락 획득 후 카카오 API 호출 */
+    private List<NearbyRestaurant> fetchAndCache(String cacheKey, double latitude, double longitude) {
+        // stampede 방지: SET NX로 1건만 카카오 API 호출
+        boolean lockAcquired = tryStampedeLock(cacheKey);
+        if (!lockAcquired) {
+            // 다른 스레드가 갱신 중 → 캐시 재조회 (갱신 완료 대기 없이 fallback)
+            List<NearbyRestaurant> retry = getFromCache(cacheKey);
+            if (retry != null) return retry;
+            // 캐시에 아직 없으면 직접 호출 (락 획득 실패해도 서비스는 중단하지 않음)
+        }
+
+        try {
+            List<NearbyRestaurant> result = callKakaoApi(latitude, longitude);
+            if (!result.isEmpty()) putToCache(cacheKey, result); // #2: 빈 결과 캐시 방지
+            return result;
+        } finally {
+            if (lockAcquired) releaseStampedeLock(cacheKey);
+        }
+    }
+
+    private List<NearbyRestaurant> callKakaoApi(double latitude, double longitude) {
         KakaoSearchResponse response = kakaoPlaceClient.searchByCategory(
                 latitude, longitude, properties.defaultRadius());
 
@@ -45,6 +81,57 @@ public class KakaoPlaceAdapter implements PlacePort {
                 .filter(doc -> !isExcludedCategory(doc.categoryName()))
                 .map(this::toNearbyRestaurant)
                 .toList();
+    }
+
+    /** 소수점 3자리 반올림 (~111m 오차) → 같은 블록 내 요청은 동일 키 */
+    private String buildCacheKey(double latitude, double longitude) {
+        return CACHE_KEY_PREFIX
+                + String.format(Locale.US, "%.3f", latitude) + ":"
+                + String.format(Locale.US, "%.3f", longitude) + ":"
+                + properties.defaultRadius();
+    }
+
+    private boolean tryStampedeLock(String cacheKey) {
+        try {
+            String lockKey = CACHE_LOCK_PREFIX + cacheKey;
+            Boolean acquired = redisTemplate.opsForValue()
+                    .setIfAbsent(lockKey, "1", Duration.ofSeconds(5));
+            return Boolean.TRUE.equals(acquired);
+        } catch (Exception e) {
+            log.warn("stampede 락 획득 실패 key={}", cacheKey, e);
+            return false;
+        }
+    }
+
+    private void releaseStampedeLock(String cacheKey) {
+        try {
+            redisTemplate.delete(CACHE_LOCK_PREFIX + cacheKey);
+        } catch (Exception e) {
+            log.warn("stampede 락 해제 실패 key={}", cacheKey, e);
+        }
+    }
+
+    private List<NearbyRestaurant> getFromCache(String cacheKey) {
+        if (properties.cacheTtlSeconds() <= 0) return null;
+        try {
+            String json = redisTemplate.opsForValue().get(cacheKey);
+            if (json == null) return null;
+            return objectMapper.readValue(json, LIST_TYPE);
+        } catch (Exception e) {
+            log.warn("카카오 API 캐시 조회 실패 key={}", cacheKey, e);
+            return null;
+        }
+    }
+
+    private void putToCache(String cacheKey, List<NearbyRestaurant> result) {
+        if (properties.cacheTtlSeconds() <= 0) return;
+        try {
+            String json = objectMapper.writeValueAsString(result);
+            redisTemplate.opsForValue().set(cacheKey, json, Duration.ofSeconds(properties.cacheTtlSeconds()));
+            log.debug("카카오 API 캐시 저장 key={} size={}", cacheKey, result.size());
+        } catch (Exception e) {
+            log.warn("카카오 API 캐시 저장 실패 key={}", cacheKey, e);
+        }
     }
 
     private boolean isExcludedCategory(String categoryName) {

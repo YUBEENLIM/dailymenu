@@ -5,7 +5,6 @@ import com.example.dailymenu.place.domain.NearbyRestaurant;
 import com.example.dailymenu.place.domain.port.PlacePort;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Profile;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -24,7 +23,6 @@ import java.util.Set;
  */
 @Component
 @Profile("kakao")
-@RequiredArgsConstructor
 @Slf4j
 public class KakaoPlaceAdapter implements PlacePort {
 
@@ -34,11 +32,19 @@ public class KakaoPlaceAdapter implements PlacePort {
     private static final String CACHE_KEY_PREFIX = "place:nearby:";
     private static final String CACHE_LOCK_PREFIX = "place:lock:";
     private static final TypeReference<List<NearbyRestaurant>> LIST_TYPE = new TypeReference<>() {};
+    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
     private final KakaoPlaceClient kakaoPlaceClient;
     private final KakaoPlaceProperties properties;
     private final StringRedisTemplate redisTemplate;
-    private final ObjectMapper objectMapper;
+
+    public KakaoPlaceAdapter(KakaoPlaceClient kakaoPlaceClient,
+                             KakaoPlaceProperties properties,
+                             StringRedisTemplate redisTemplate) {
+        this.kakaoPlaceClient = kakaoPlaceClient;
+        this.properties = properties;
+        this.redisTemplate = redisTemplate;
+    }
 
     @Override
     public List<NearbyRestaurant> findNearby(double latitude, double longitude) {
@@ -116,7 +122,7 @@ public class KakaoPlaceAdapter implements PlacePort {
         try {
             String json = redisTemplate.opsForValue().get(cacheKey);
             if (json == null) return null;
-            return objectMapper.readValue(json, LIST_TYPE);
+            return OBJECT_MAPPER.readValue(json, LIST_TYPE);
         } catch (Exception e) {
             log.warn("카카오 API 캐시 조회 실패 key={}", cacheKey, e);
             return null;
@@ -126,7 +132,7 @@ public class KakaoPlaceAdapter implements PlacePort {
     private void putToCache(String cacheKey, List<NearbyRestaurant> result) {
         if (properties.cacheTtlSeconds() <= 0) return;
         try {
-            String json = objectMapper.writeValueAsString(result);
+            String json = OBJECT_MAPPER.writeValueAsString(result);
             redisTemplate.opsForValue().set(cacheKey, json, Duration.ofSeconds(properties.cacheTtlSeconds()));
             log.debug("카카오 API 캐시 저장 key={} size={}", cacheKey, result.size());
         } catch (Exception e) {

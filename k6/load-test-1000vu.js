@@ -5,10 +5,9 @@ import { textSummary } from 'https://jslib.k6.io/k6-summary/0.1.0/index.js';
 import { htmlReport } from 'https://raw.githubusercontent.com/benc-uk/k6-reporter/main/dist/bundle.js';
 
 // ── 설정 ──────────────────────────────────────────────
-const BASE_URL = __ENV.BASE_URL || 'http://34.224.7.22:8080';
-const TEST_USER_COUNT = parseInt(__ENV.USER_COUNT || '200');
+const BASE_URL = __ENV.BASE_URL || 'http://13.209.70.9:8080';
+const TEST_USER_COUNT = 1000;
 
-// 서울 시청 근처 좌표 (시드 데이터 식당 위치)
 const LATITUDE = 37.5665;
 const LONGITUDE = 126.9780;
 
@@ -19,72 +18,43 @@ const rejectDuration = new Trend('reject_duration', true);
 const mealHistoryDuration = new Trend('meal_history_duration', true);
 const errorRate = new Rate('error_rate');
 
-// ── 시나리오 정의 ────────────────────────────────────────
+// ── 시나리오: VU 1000까지 점진적 증가 ─────────────────────
 export const options = {
+    setupTimeout: '300s',
     scenarios: {
-        // 시나리오 1: Smoke Test — 기본 동작 확인
-        smoke: {
+        rampup_1000: {
             executor: 'ramping-vus',
             startVUs: 0,
             stages: [
-                { duration: '10s', target: 2 },
-                { duration: '20s', target: 2 },
+                { duration: '1m', target: 100 },    // 워밍업
+                { duration: '2m', target: 300 },
+                { duration: '2m', target: 500 },
+                { duration: '2m', target: 700 },
+                { duration: '3m', target: 1000 },   // 피크
+                { duration: '2m', target: 1000 },   // 피크 유지
+                { duration: '1m', target: 0 },       // 정리
             ],
             exec: 'lunchScenario',
-            tags: { scenario: 'smoke' },
-        },
-
-        // 시나리오 2: Ramp-up — 점심시간 피크 시뮬레이션
-        rampup: {
-            executor: 'ramping-vus',
-            startVUs: 0,
-            startTime: '35s', // smoke 끝난 후
-            stages: [
-                { duration: '1m', target: 10 },
-                { duration: '2m', target: 30 },
-                { duration: '2m', target: 50 },
-                { duration: '2m', target: 80 },
-                { duration: '2m', target: 100 },
-                { duration: '1m', target: 50 },
-            ],
-            exec: 'lunchScenario',
-            tags: { scenario: 'rampup' },
-        },
-
-        // 시나리오 3: Stress Test — 극한 한계
-        stress: {
-            executor: 'ramping-vus',
-            startVUs: 0,
-            startTime: '11m35s', // rampup 끝난 후
-            stages: [
-                { duration: '1m', target: 50 },
-                { duration: '2m', target: 150 },
-                { duration: '2m', target: 200 },
-                { duration: '1m', target: 0 },
-            ],
-            exec: 'lunchScenario',
-            tags: { scenario: 'stress' },
         },
     },
 
-    // ── 성능 기준 (architecture.md §8) ────────────────
     thresholds: {
-        http_req_duration: ['p(99)<5000'],        // p99 응답 5초 이내
-        recommendation_duration: ['p(99)<5000'],  // 추천 API p99 5초 이내
-        error_rate: ['rate<0.01'],                // 에러율 1% 미만
-        http_req_failed: ['rate<0.05'],           // HTTP 실패율 5% 미만
+        http_req_duration: ['p(99)<5000'],
+        recommendation_duration: ['p(99)<5000'],
+        error_rate: ['rate<0.01'],
+        http_req_failed: ['rate<0.05'],
     },
 };
 
-// ── Setup: 테스트 사용자 대량 생성 ──────────────────────
+// ── Setup: 테스트 사용자 1000명 생성 ───────────────────────
 export function setup() {
     console.log(`Creating ${TEST_USER_COUNT} test users...`);
 
     const users = [];
     for (let i = 0; i < TEST_USER_COUNT; i++) {
-        const email = `loadtest_${i}_${Date.now()}@test.com`;
+        const email = `load1k_${i}_${Date.now()}@test.com`;
         const password = 'Test1234!';
-        const nickname = `tester_${i}`;
+        const nickname = `tester1k_${i}`;
 
         const registerRes = http.post(
             `${BASE_URL}/auth/register`,
@@ -106,7 +76,7 @@ export function setup() {
             }
         }
 
-        if ((i + 1) % 50 === 0) {
+        if ((i + 1) % 100 === 0) {
             console.log(`  Created ${i + 1}/${TEST_USER_COUNT} users`);
         }
     }
@@ -115,7 +85,7 @@ export function setup() {
     return { users };
 }
 
-// ── 점심시간 시나리오 (각 VU가 반복 실행) ─────────────────
+// ── 점심시간 시나리오 ──────────────────────────────────────
 export function lunchScenario(data) {
     const user = data.users[__VU % data.users.length];
     const headers = {
@@ -146,7 +116,6 @@ export function lunchScenario(data) {
         return;
     }
 
-    // 추천 ID 추출
     let recommendationId;
     try {
         const body = JSON.parse(recommendRes.body);
@@ -206,22 +175,21 @@ export function lunchScenario(data) {
         'history: status 200': (r) => r.status === 200,
     });
 
-    // 다음 반복까지 대기 (2~5초 — 실제 사용자 행동 시뮬레이션)
+    // 다음 반복까지 대기 (2~5초)
     sleep(Math.random() * 3 + 2);
 }
 
-// ── Summary: HTML + 터미널 리포트 ─────────────────────
+// ── Summary ─────────────────────────────────────────────
 export function handleSummary(data) {
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
     return {
-        [`k6/reports/load-test-${timestamp}.html`]: htmlReport(data),
-        [`k6/reports/load-test-${timestamp}.json`]: JSON.stringify(data, null, 2),
+        [`k6/reports/load-test-1000vu-${timestamp}.html`]: htmlReport(data),
+        [`k6/reports/load-test-1000vu-${timestamp}.json`]: JSON.stringify(data, null, 2),
         stdout: textSummary(data, { indent: '  ', enableColors: true }),
     };
 }
 
-// ── Teardown ────────────────────────────────────────
 export function teardown(data) {
-    console.log('Load test completed.');
+    console.log('Load test (1000 VU) completed.');
     console.log(`Total test users: ${data.users.length}`);
 }

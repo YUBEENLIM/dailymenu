@@ -167,7 +167,8 @@ Controller → Facade(멱등성 확인 → 락 획득) → UseCase(@Transactiona
 
 ## 6. Session Tracking
 
-- 작업 기록 파일: `docs/session-progress.md`
-- 사용자가 작업 저장을 요청하면 (예: "작업 내용 저장해줘", "오늘 한 거 정리해줘") → `docs/session-progress.md`에 날짜별로 기록
-- 사용자가 이전 작업을 물어보면 (예: "이전에 뭐 했어?", "어디까지 했어?") → `docs/session-progress.md`를 읽고 요약
+- 작업 기록 파일: `dev-logs/YYYY-Www.md` (주 단위, .gitignore 대상)
+- 사용자가 작업 저장을 요청하면 (예: "작업 내용 저장해줘", "오늘 한 거 정리해줘") → `dev-logs/`에 해당 주차 파일로 기록
+- 사용자가 이전 작업을 물어보면 (예: "이전에 뭐 했어?", "어디까지 했어?") → `dev-logs/`의 최근 파일을 읽고 요약
 - 미완료 항목은 `## 미완료` 섹션에 유지하고, 완료되면 해당 날짜 섹션으로 이동
+- 에이전트 시스템 운영 가이드: `docs/agent-system.md`

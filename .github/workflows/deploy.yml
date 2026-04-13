@@ -25,8 +25,8 @@ jobs:
             git checkout main
             git pull origin main
             source ~/.bashrc
-            docker-compose down app
-            docker-compose build --no-cache app
-            docker-compose up -d app
+            docker stop dailymenu-app || true
+            docker rm dailymenu-app || true
+            docker compose up -d --build app
             echo "Deploy completed at $(date)"
-          timeout: 300s
+          timeout: 600s

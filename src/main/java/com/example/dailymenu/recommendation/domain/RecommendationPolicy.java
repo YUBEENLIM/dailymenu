@@ -33,7 +33,7 @@ import java.util.stream.Collectors;
  *   4. 사용자 제한 (메뉴/식당/카테고리 Restriction)
  *   5. 사용자 프로필 (혼밥, 가격)
  *
- * 추천 점수: 거리(30) + 선호카테고리(30) + 식사이력(30) + 추천이력(10) = 0~100
+ * 추천 점수: 거리(40) + 카테고리(20) + 식사이력(30) + 추천이력(10) = 0~100
  * 메뉴 없는 식당도 동일한 100점 체계 — restaurant.id/subCategory 기반으로 점수 계산.
  */
 public class RecommendationPolicy {
@@ -314,18 +314,18 @@ public class RecommendationPolicy {
         return BigDecimal.valueOf(Math.max(0, total));
     }
 
-    /** 거리 점수 (30점 만점) */
+    /** 거리 점수 (40점 만점, 500m 반경 기준) */
     int distanceScore(double distanceMeters) {
-        if (distanceMeters <= 500) return 30;
-        if (distanceMeters <= 700) return 20;
-        if (distanceMeters <= 1000) return 10;
+        if (distanceMeters <= 200) return 40;
+        if (distanceMeters <= 350) return 30;
+        if (distanceMeters <= 500) return 20;
         return 0;
     }
 
-    /** 선호 카테고리 점수 (30점 만점). Restriction 은 이미 필터에서 제거됨 */
+    /** 선호 카테고리 점수 (20점 만점). Restriction 은 이미 필터에서 제거됨 */
     int categoryScore(MenuCategory category, UserProfile userProfile) {
-        if (category == null) return 15;
-        return userProfile.getPreferences().isPreferredCategory(category) ? 30 : 15;
+        if (category == null) return 10;
+        return userProfile.getPreferences().isPreferredCategory(category) ? 20 : 10;
     }
 
     /**

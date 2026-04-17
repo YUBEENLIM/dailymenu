@@ -118,6 +118,20 @@ class ApiClient {
     return response;
   }
 
+  static Future<http.Response> delete(String path) async {
+    final headers = await _authHeaders();
+    final response =
+        await http.delete(Uri.parse('$baseUrl$path'), headers: headers);
+    if (response.statusCode == 401) {
+      final refreshed = await _tryRefreshToken();
+      if (refreshed) {
+        final newHeaders = await _authHeaders();
+        return http.delete(Uri.parse('$baseUrl$path'), headers: newHeaders);
+      }
+    }
+    return response;
+  }
+
   static Future<bool> _tryRefreshToken() async {
     final refresh = await refreshToken;
     if (refresh == null) return false;

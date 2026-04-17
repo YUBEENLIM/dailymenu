@@ -3,6 +3,7 @@ package com.example.dailymenu.recommendation.domain;
 import com.example.dailymenu.catalog.domain.Restaurant;
 import com.example.dailymenu.mealhistory.domain.MealHistory;
 import com.example.dailymenu.catalog.domain.MenuCategory;
+import com.example.dailymenu.recommendation.domain.vo.RejectReason;
 import com.example.dailymenu.user.domain.UserProfile;
 
 import java.math.BigDecimal;
@@ -65,7 +66,7 @@ public class RecommendationPolicy {
     ) {
         LocalTime now = LocalTime.now(ZoneId.of("Asia/Seoul"));
         List<MenuCandidate> filtered = applyFilters(
-                candidates, userProfile, mealHistories, recommendationHistories, now);
+                candidates, userProfile, mealHistories, recommendationHistories, now, subCategoryByRestaurantId);
         if (filtered.isEmpty()) {
             return Optional.empty();
         }
@@ -79,12 +80,14 @@ public class RecommendationPolicy {
             UserProfile userProfile,
             List<MealHistory> mealHistories,
             List<Recommendation> recommendationHistories,
-            LocalTime now
+            LocalTime now,
+            Map<Long, String> subCategoryByRestaurantId
     ) {
         List<MenuCandidate> result = filterByDistance(candidates);
         result = filterByTimeSlot(result, now);
         result = filterByMealExclusion(result, mealHistories);
         result = filterBySameDayRecommendation(result, recommendationHistories);
+        result = filterByRejectReason(result, recommendationHistories, subCategoryByRestaurantId);
         result = filterByRestrictions(result, userProfile);
         result = filterBySoloPreference(result, userProfile);
         result = filterByPriceRange(result, userProfile);
@@ -165,6 +168,36 @@ public class RecommendationPolicy {
                 .filter(c -> {
                     if (c.hasMenu()) return !sameDayMenuIds.contains(c.menu().getId());
                     return !sameDayRestaurantIds.contains(c.restaurant().getId());
+                })
+                .toList();
+    }
+
+    /**
+     * 3.5. 거절 사유 기반 필터.
+     * NOT_THIS_TYPE: 당일 거절한 식당과 같은 subCategory 전체 제외.
+     * ATE_RECENTLY: 점수 감점으로 처리 (filterByRejectReason에서는 제외하지 않음).
+     * TOO_FAR, OTHER: 해당 식당만 제외 (filterBySameDayRecommendation에서 이미 처리됨).
+     */
+    List<MenuCandidate> filterByRejectReason(
+            List<MenuCandidate> candidates,
+            List<Recommendation> histories,
+            Map<Long, String> subCategoryByRestaurantId
+    ) {
+        LocalDate today = LocalDate.now(ZoneId.of("Asia/Seoul"));
+        Set<String> excludedSubCategories = histories.stream()
+                .filter(r -> r.getRejectReason() == RejectReason.NOT_THIS_TYPE)
+                .filter(r -> r.getCreatedAt().toLocalDate().isEqual(today))
+                .filter(r -> r.getRestaurantId() != null)
+                .map(r -> subCategoryByRestaurantId.get(r.getRestaurantId()))
+                .filter(sub -> sub != null)
+                .collect(Collectors.toSet());
+
+        if (excludedSubCategories.isEmpty()) return candidates;
+
+        return candidates.stream()
+                .filter(c -> {
+                    String sub = c.restaurant().getSubCategory();
+                    return sub == null || !excludedSubCategories.contains(sub);
                 })
                 .toList();
     }
@@ -347,6 +380,14 @@ public class RecommendationPolicy {
                     })
                     .findFirst()
                     .orElse(10);
+
+            // ATE_RECENTLY 거절 시 같은 subCategory 당일 강한 감점 (0점)
+            boolean ateRecentlySameSubCategory = histories.stream()
+                    .filter(r -> r.getRejectReason() == RejectReason.ATE_RECENTLY)
+                    .filter(r -> r.getCreatedAt().toLocalDate().isEqual(today))
+                    .filter(r -> r.getRestaurantId() != null)
+                    .anyMatch(r -> subCategory.equals(subCategoryByRestaurantId.get(r.getRestaurantId())));
+            if (ateRecentlySameSubCategory) subCategoryScore = 0;
         }
 
         return Math.min(restaurantScore, subCategoryScore);

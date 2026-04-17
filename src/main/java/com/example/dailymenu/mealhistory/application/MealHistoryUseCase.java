@@ -80,6 +80,26 @@ public class MealHistoryUseCase {
         return saved.getId();
     }
 
+    @Transactional
+    public Long recordMealManual(Long userId, String menuName, String restaurantName, LocalDateTime eatenAt) {
+        MealHistory mealHistory = MealHistory.create(
+                userId, null, null, menuName, null, restaurantName, eatenAt);
+        MealHistory saved = mealHistoryRepositoryPort.save(mealHistory);
+        log.info("식사 기록 수동 저장 userId={} mealHistoryId={}", userId, saved.getId());
+        return saved.getId();
+    }
+
+    @Transactional
+    public void deleteMeal(Long userId, Long mealHistoryId) {
+        MealHistory mealHistory = mealHistoryRepositoryPort.findById(mealHistoryId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.MEAL_HISTORY_NOT_FOUND));
+        if (!mealHistory.getUserId().equals(userId)) {
+            throw new BusinessException(ErrorCode.INVALID_REQUEST, "본인의 식사 기록만 삭제할 수 있습니다.");
+        }
+        mealHistoryRepositoryPort.deleteById(mealHistoryId);
+        log.info("식사 기록 삭제 userId={} mealHistoryId={}", userId, mealHistoryId);
+    }
+
     @Transactional(readOnly = true)
     public PagedResult<MealHistoryItemResult> getHistories(
             Long userId, LocalDate from, LocalDate to, int page, int size) {

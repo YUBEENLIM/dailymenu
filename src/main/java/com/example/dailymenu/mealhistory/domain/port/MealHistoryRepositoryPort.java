@@ -5,6 +5,7 @@ import com.example.dailymenu.mealhistory.domain.MealHistory;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 
 /**
  * 식사 이력 Port.
@@ -19,4 +20,8 @@ public interface MealHistoryRepositoryPort {
 
     PageResult<MealHistory> findByUserIdAndEatenAtBetween(
             Long userId, LocalDateTime from, LocalDateTime to, int page, int size);
+
+    Optional<MealHistory> findById(Long id);
+
+    void deleteById(Long id);
 }

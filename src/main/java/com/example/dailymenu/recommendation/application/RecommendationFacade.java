@@ -96,8 +96,8 @@ public class RecommendationFacade {
         return recommendationUseCase.acceptRecommendation(recommendationId);
     }
 
-    public StatusUpdateResult reject(Long recommendationId, RejectReason reason) {
-        return recommendationUseCase.rejectRecommendation(recommendationId, reason);
+    public StatusUpdateResult reject(Long recommendationId, RejectReason reason, String detail) {
+        return recommendationUseCase.rejectRecommendation(recommendationId, reason, detail);
     }
 
     private RecommendationResult handleDuplicateRequest(

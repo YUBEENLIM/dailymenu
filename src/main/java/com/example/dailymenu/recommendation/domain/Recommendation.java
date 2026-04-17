@@ -25,6 +25,7 @@ public class Recommendation {
     private final String idempotencyKey;
     private RecommendationStatus status;
     private RejectReason rejectReason;  // 거절 시에만 값 존재
+    private String rejectDetail;        // OTHER 사유 텍스트 (관리자 확인용)
     private final BigDecimal recommendationScore; // 0~100
     private final FallbackLevel fallbackLevel;    // null = 정상 추천
     private final LocalDateTime createdAt;
@@ -40,6 +41,7 @@ public class Recommendation {
             String idempotencyKey,
             RecommendationStatus status,
             RejectReason rejectReason,
+            String rejectDetail,
             BigDecimal recommendationScore,
             FallbackLevel fallbackLevel,
             LocalDateTime createdAt,
@@ -54,6 +56,7 @@ public class Recommendation {
         this.idempotencyKey = idempotencyKey;
         this.status = status;
         this.rejectReason = rejectReason;
+        this.rejectDetail = rejectDetail;
         this.recommendationScore = recommendationScore;
         this.fallbackLevel = fallbackLevel;
         this.createdAt = createdAt;
@@ -73,7 +76,7 @@ public class Recommendation {
         LocalDateTime now = LocalDateTime.now();
         return new Recommendation(
                 null, userId, menuId, menuName, restaurantId, restaurantName,
-                idempotencyKey, RecommendationStatus.RECOMMENDED, null,
+                idempotencyKey, RecommendationStatus.RECOMMENDED, null, null,
                 recommendationScore, fallbackLevel, now, now
         );
     }
@@ -88,6 +91,7 @@ public class Recommendation {
             String idempotencyKey,
             RecommendationStatus status,
             RejectReason rejectReason,
+            String rejectDetail,
             BigDecimal recommendationScore,
             FallbackLevel fallbackLevel,
             LocalDateTime createdAt,
@@ -95,7 +99,7 @@ public class Recommendation {
     ) {
         return new Recommendation(
                 id, userId, menuId, menuName, restaurantId, restaurantName,
-                idempotencyKey, status, rejectReason,
+                idempotencyKey, status, rejectReason, rejectDetail,
                 recommendationScore, fallbackLevel, createdAt, updatedAt
         );
     }
@@ -105,9 +109,10 @@ public class Recommendation {
         this.updatedAt = LocalDateTime.now();
     }
 
-    public void reject(RejectReason reason) {
+    public void reject(RejectReason reason, String detail) {
         this.status = RecommendationStatus.REJECTED;
         this.rejectReason = reason;
+        this.rejectDetail = detail;
         this.updatedAt = LocalDateTime.now();
     }
 

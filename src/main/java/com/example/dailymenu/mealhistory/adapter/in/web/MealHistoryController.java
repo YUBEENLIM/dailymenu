@@ -1,6 +1,7 @@
 package com.example.dailymenu.mealhistory.adapter.in.web;
 
 import com.example.dailymenu.shared.adapter.in.web.dto.PagedResponse;
+import com.example.dailymenu.mealhistory.adapter.in.web.dto.ManualMealHistoryRequest;
 import com.example.dailymenu.mealhistory.adapter.in.web.dto.MealHistoryHttpRequest;
 import com.example.dailymenu.mealhistory.adapter.in.web.dto.MealHistoryHttpResponse;
 import com.example.dailymenu.mealhistory.adapter.in.web.dto.MealHistoryItemResponse;
@@ -76,5 +77,32 @@ public class MealHistoryController {
                         .toList(),
                 result.page(), result.size(), result.totalElements(), result.totalPages()
         );
+    }
+
+    /**
+     * POST /meal-histories/manual — 식사 기록 수동 추가.
+     * 식당명/메뉴명을 텍스트로 직접 입력.
+     */
+    @PostMapping("/manual")
+    @ResponseStatus(HttpStatus.CREATED)
+    public MealHistoryHttpResponse recordMealManual(
+            @RequestAttribute("userId") Long userId,
+            @RequestBody @Valid ManualMealHistoryRequest request
+    ) {
+        Long mealHistoryId = mealHistoryUseCase.recordMealManual(
+                userId, request.menuName(), request.restaurantName(), request.eatenAt());
+        return new MealHistoryHttpResponse(mealHistoryId);
+    }
+
+    /**
+     * DELETE /meal-histories/{id} — 식사 기록 삭제.
+     */
+    @DeleteMapping("/{id}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void deleteMeal(
+            @RequestAttribute("userId") Long userId,
+            @PathVariable Long id
+    ) {
+        mealHistoryUseCase.deleteMeal(userId, id);
     }
 }

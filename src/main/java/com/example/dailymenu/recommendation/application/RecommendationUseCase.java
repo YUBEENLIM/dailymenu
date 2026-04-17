@@ -109,10 +109,10 @@ public class RecommendationUseCase {
     }
 
     @Transactional
-    public StatusUpdateResult rejectRecommendation(Long recommendationId, RejectReason reason) {
+    public StatusUpdateResult rejectRecommendation(Long recommendationId, RejectReason reason, String detail) {
         Recommendation rec = recommendationRepositoryPort.findById(recommendationId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.RECOMMENDATION_NOT_FOUND));
-        rec.reject(reason);
+        rec.reject(reason, detail);
         recommendationRepositoryPort.save(rec);
         return new StatusUpdateResult(rec.getId(), rec.getStatus());
     }

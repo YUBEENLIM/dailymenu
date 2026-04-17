@@ -498,15 +498,6 @@ class _ProfilePageState extends State<ProfilePage> {
                 ),
               ],
             ),
-            IconButton(
-              icon: const Icon(Icons.add, size: 20),
-              onPressed: () {
-                // TODO: 식사 기록 추가
-              },
-              style: IconButton.styleFrom(
-                backgroundColor: AppColors.accent,
-              ),
-            ),
           ],
         ),
         const SizedBox(height: 12),
@@ -538,36 +529,90 @@ class _ProfilePageState extends State<ProfilePage> {
           ..._mealRecords.map((record) => Padding(
                 padding: const EdgeInsets.only(bottom: 8),
                 child: AppCard(
-                  child: Column(
+                  child: Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        record['menuName'] ??
-                            record['restaurantName'] ??
-                            '',
-                        style: const TextStyle(fontWeight: FontWeight.w600),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        record['restaurantName'] ?? '',
-                        style: const TextStyle(
-                          fontSize: 14,
-                          color: AppColors.mutedForeground,
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              record['menuName'] ??
+                                  record['restaurantName'] ??
+                                  '',
+                              style: const TextStyle(fontWeight: FontWeight.w600),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              record['restaurantName'] ?? '',
+                              style: const TextStyle(
+                                fontSize: 14,
+                                color: AppColors.mutedForeground,
+                              ),
+                            ),
+                            if (record['category'] != null) ...[
+                              const SizedBox(height: 8),
+                              AppChip(
+                                label: record['category'],
+                                selected: true,
+                              ),
+                            ],
+                          ],
                         ),
                       ),
-                      if (record['category'] != null) ...[
-                        const SizedBox(height: 8),
-                        AppChip(
-                          label: record['category'],
-                          selected: true,
-                        ),
-                      ],
+                      IconButton(
+                        icon: const Icon(Icons.close, size: 18),
+                        color: AppColors.mutedForeground,
+                        onPressed: () => _deleteMealRecord(record['mealHistoryId']),
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(),
+                      ),
                     ],
                   ),
                 ),
               )),
       ],
     );
+  }
+
+  Future<void> _deleteMealRecord(dynamic id) async {
+    if (id == null) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('식사 기록 삭제'),
+        content: const Text('이 기록을 삭제하시겠어요?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('취소'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('삭제', style: TextStyle(color: AppColors.destructive)),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    try {
+      await ApiClient.delete('/meal-histories/$id');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('식사 기록이 삭제되었습니다.')),
+        );
+        _loadData();
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('삭제에 실패했습니다.'),
+            backgroundColor: AppColors.destructive,
+          ),
+        );
+      }
+    }
   }
 
   Widget _buildLogout() {

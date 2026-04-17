@@ -13,4 +13,4 @@ spring:
 
 kakao:
   oauth:
-    redirect-uri: http://34.224.7.22:8080/auth/kakao/callback
+    redirect-uri: http://13.209.70.9:8080/auth/kakao/callback

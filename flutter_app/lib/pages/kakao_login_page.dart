@@ -18,11 +18,12 @@ class _KakaoLoginPageState extends State<KakaoLoginPage> {
   late final WebViewController _controller;
   bool _loading = true;
 
-  // 카카오 OAuth URL (백엔드와 동일한 client_id, redirect_uri 사용)
-  static const _kakaoAuthUrl =
+  // 카카오 OAuth URL — redirect_uri는 API_URL 기반으로 동적 구성
+  static final _redirectUri = '${ApiClient.baseUrl}/auth/kakao/callback';
+  static final _kakaoAuthUrl =
       'https://kauth.kakao.com/oauth/authorize'
       '?client_id=427c342e3b8aa668eb44c22afae86abb'
-      '&redirect_uri=http://localhost:8080/auth/kakao/callback'
+      '&redirect_uri=$_redirectUri'
       '&response_type=code';
 
   @override
@@ -42,8 +43,9 @@ class _KakaoLoginPageState extends State<KakaoLoginPage> {
   NavigationDecision _handleNavigation(NavigationRequest request) {
     final uri = Uri.parse(request.url);
 
-    // redirect URI 감지: localhost 콜백에 code 파라미터가 있으면 가로채기
-    if (uri.host == 'localhost' && uri.path == '/auth/kakao/callback') {
+    // redirect URI 감지: 콜백 경로에 code 파라미터가 있으면 가로채기
+    final redirectHost = Uri.parse(ApiClient.baseUrl).host;
+    if (uri.host == redirectHost && uri.path == '/auth/kakao/callback') {
       final code = uri.queryParameters['code'];
       if (code != null) {
         _exchangeCodeForToken(code);

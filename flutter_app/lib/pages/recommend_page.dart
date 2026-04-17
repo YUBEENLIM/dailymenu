@@ -17,7 +17,12 @@ import '../widgets/skeleton_ui.dart';
 
 enum RecommendState { initial, loading, result, empty }
 
-const _rejectReasons = ['너무 멀어요', '배고프지 않아요', '혼밥 선호', '기타'];
+const _rejectReasons = [
+  {'label': '너무 멀어요', 'value': 'TOO_FAR'},
+  {'label': '최근에 먹었어요', 'value': 'ATE_RECENTLY'},
+  {'label': '이 종류 말고요', 'value': 'NOT_THIS_TYPE'},
+  {'label': '기타', 'value': 'OTHER'},
+];
 
 class RecommendPage extends StatefulWidget {
   const RecommendPage({super.key});
@@ -208,14 +213,14 @@ class _RecommendPageState extends State<RecommendPage> {
     } catch (_) {}
   }
 
-  Future<void> _handleReject(String reason) async {
+  Future<void> _handleReject(String reasonValue, {String? memo}) async {
     if (_currentResult == null) return;
     final id = _currentResult!['recommendationId'];
 
     try {
-      await ApiClient.patch('/recommendations/$id/reject', body: {
-        'reason': reason,
-      });
+      final body = <String, dynamic>{'reason': reasonValue};
+      if (memo != null && memo.isNotEmpty) body['memo'] = memo;
+      await ApiClient.patch('/recommendations/$id/reject', body: body);
     } catch (_) {}
 
     if (!mounted) return;
@@ -237,7 +242,14 @@ class _RecommendPageState extends State<RecommendPage> {
                   child: SizedBox(
                     width: double.infinity,
                     child: TextButton(
-                      onPressed: () => _handleReject(reason),
+                      onPressed: () {
+                        if (reason['value'] == 'OTHER') {
+                          Navigator.of(context).pop();
+                          _showOtherReasonInput();
+                        } else {
+                          _handleReject(reason['value']!);
+                        }
+                      },
                       style: TextButton.styleFrom(
                         backgroundColor: AppColors.accent,
                         padding: const EdgeInsets.all(16),
@@ -247,7 +259,7 @@ class _RecommendPageState extends State<RecommendPage> {
                         alignment: Alignment.centerLeft,
                       ),
                       child: Text(
-                        reason,
+                        reason['label']!,
                         style: const TextStyle(
                           color: AppColors.foreground,
                           fontSize: 16,
@@ -257,6 +269,34 @@ class _RecommendPageState extends State<RecommendPage> {
                   ),
                 ))
             .toList(),
+      ),
+    );
+  }
+
+  void _showOtherReasonInput() {
+    final controller = TextEditingController();
+    showAppBottomSheet(
+      context: context,
+      title: '어떤 이유인지 알려주세요',
+      child: Column(
+        children: [
+          TextField(
+            controller: controller,
+            maxLength: 200,
+            decoration: const InputDecoration(
+              hintText: '거절 사유를 입력해주세요',
+              border: OutlineInputBorder(),
+            ),
+          ),
+          const SizedBox(height: 12),
+          PrimaryButton(
+            text: '제출',
+            fullWidth: true,
+            onPressed: () {
+              _handleReject('OTHER', memo: controller.text);
+            },
+          ),
+        ],
       ),
     );
   }

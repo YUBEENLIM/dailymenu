@@ -6,6 +6,9 @@ import com.example.dailymenu.catalog.domain.MenuCategory;
 import com.example.dailymenu.recommendation.domain.vo.RejectReason;
 import com.example.dailymenu.user.domain.UserProfile;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -35,6 +38,7 @@ import java.util.stream.Collectors;
  */
 public class RecommendationPolicy {
 
+    private static final Logger log = LoggerFactory.getLogger(RecommendationPolicy.class);
     private static final int MAX_DISTANCE_METERS = 1000;
     private static final double EXPLORATION_RATIO = 0.1;
 
@@ -269,13 +273,25 @@ public class RecommendationPolicy {
             LocalTime now,
             Map<Long, String> subCategoryByRestaurantId
     ) {
-        return candidates.stream()
+        List<ScoredCandidate> scored = candidates.stream()
                 .map(c -> new ScoredCandidate(c,
                         calculateScore(c, userProfile, mealHistories, recommendationHistories, now, subCategoryByRestaurantId)))
                 .sorted(Comparator.<ScoredCandidate, BigDecimal>comparing(ScoredCandidate::score)
                         .reversed()
                         .thenComparingDouble(s -> s.candidate().distanceMeters()))
                 .toList();
+
+        log.info("[추천점수] 후보 {}건", scored.size());
+        for (ScoredCandidate s : scored) {
+            MenuCandidate c = s.candidate();
+            String name = c.restaurant().getName();
+            String sub = c.restaurant().getSubCategory();
+            int dist = (int) c.distanceMeters();
+            log.info("[추천점수] {}점 | {} | sub={} | {}m",
+                    s.score(), name, sub != null ? sub : "-", dist);
+        }
+
+        return scored;
     }
 
     BigDecimal calculateScore(

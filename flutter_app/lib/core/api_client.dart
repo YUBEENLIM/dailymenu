@@ -3,10 +3,9 @@ import 'package:http/http.dart' as http;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 class ApiClient {
-  // Web: localhost, Android 에뮬레이터: 10.0.2.2
   static const String baseUrl = String.fromEnvironment(
     'API_URL',
-    defaultValue: 'http://localhost:8080',
+    defaultValue: 'http://13.209.70.9:8080',
   );
   static const _storage = FlutterSecureStorage();
 

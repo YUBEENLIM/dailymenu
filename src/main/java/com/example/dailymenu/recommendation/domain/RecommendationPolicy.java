@@ -89,10 +89,11 @@ public class RecommendationPolicy {
                     filtered, userProfile, mealHistories, recommendationHistories, now, subCategoryByRestaurantId));
         }
 
-        // 2사이클: 완전 제외(NOT_THIS_TYPE)만 유지, 나머지 거절 식당 재추천
+        // 2사이클: 추천 이력 필터 해제 + 2번 이상 추천된 식당 제외 + 직전 식당 제외
         List<MenuCandidate> relaxed = applyFilters(
                 candidates, userProfile, mealHistories, recommendationHistories,
                 now, subCategoryByRestaurantId, true);
+        relaxed = excludeOverRecommended(relaxed, recommendationHistories);
         if (!relaxed.isEmpty()) {
             return selectBest(scoreAndRank(
                     relaxed, userProfile, mealHistories, recommendationHistories, now, subCategoryByRestaurantId));
@@ -193,6 +194,40 @@ public class RecommendationPolicy {
                 .collect(Collectors.toSet());
         return candidates.stream()
                 .filter(c -> !recentRestaurantIds.contains(c.restaurant().getId()))
+                .toList();
+    }
+
+    /**
+     * 2사이클 전용 — 2시간 내 2번 이상 추천된 식당 제외 + 직전 추천 식당 제외.
+     * 같은 식당이 무한 반복되는 것을 방지.
+     */
+    List<MenuCandidate> excludeOverRecommended(
+            List<MenuCandidate> candidates,
+            List<Recommendation> histories
+    ) {
+        LocalDateTime cutoff = LocalDateTime.now(ZoneId.of("Asia/Seoul")).minusHours(REJECT_FILTER_HOURS);
+        List<Recommendation> recent = histories.stream()
+                .filter(r -> r.getRestaurantId() != null)
+                .filter(r -> r.getCreatedAt().isAfter(cutoff))
+                .toList();
+
+        // 2번 이상 추천된 식당 ID
+        Set<Long> overRecommended = recent.stream()
+                .collect(Collectors.groupingBy(Recommendation::getRestaurantId, Collectors.counting()))
+                .entrySet().stream()
+                .filter(e -> e.getValue() >= 2)
+                .map(Map.Entry::getKey)
+                .collect(Collectors.toSet());
+
+        // 직전 추천 식당 ID (연속 같은 식당 방지)
+        Long lastRestaurantId = recent.stream()
+                .max(Comparator.comparing(Recommendation::getCreatedAt))
+                .map(Recommendation::getRestaurantId)
+                .orElse(null);
+
+        return candidates.stream()
+                .filter(c -> !overRecommended.contains(c.restaurant().getId()))
+                .filter(c -> !c.restaurant().getId().equals(lastRestaurantId))
                 .toList();
     }
 

@@ -7,13 +7,12 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Component;
 
 import java.time.Duration;
-import java.util.Map;
 
 /**
- * Redis Rate Limit Adapter (resilience.md §8).
+ * Redis Rate Limit Adapter (api-spec.md §2, architecture.md §15).
  * Redis INCR + TTL 카운터 기반. 분당 + 시간당 제한 모두 확인.
  *
- * POST /recommendations: 분당 5회, 시간당 20회
+ * 제한값은 application.yml rate-limit.apis 에서 프로필별로 관리.
  * Redis key: rate_limit:min:{userId}:{apiName}  / TTL 60초
  *            rate_limit:hour:{userId}:{apiName} / TTL 3600초
  */
@@ -22,20 +21,14 @@ import java.util.Map;
 @Slf4j
 public class RedisRateLimitAdapter implements RateLimitPort {
 
-    // TODO: 운영 배포 시 원래 값으로 복원 (recommendations: 분당 5, 시간당 20)
-    private static final Map<String, int[]> LIMITS = Map.of(
-            "recommendations", new int[]{100, 500},  // 로컬 테스트용 완화
-            "meal-histories", new int[]{100, 0},
-            "restaurants", new int[]{100, 0}
-    );
-
     private final StringRedisTemplate redisTemplate;
+    private final RateLimitProperties rateLimitProperties;
 
     @Override
     public boolean tryConsume(Long userId, String apiName) {
-        int[] limits = LIMITS.getOrDefault(apiName, new int[]{60, 0});
-        int perMinute = limits[0];
-        int perHour = limits[1];
+        RateLimitProperties.ApiLimit limit = rateLimitProperties.getLimit(apiName);
+        int perMinute = limit.perMinute();
+        int perHour = limit.perHour();
 
         if (!checkAndIncrement("rate_limit:min:" + userId + ":" + apiName,
                 perMinute, Duration.ofSeconds(60))) {

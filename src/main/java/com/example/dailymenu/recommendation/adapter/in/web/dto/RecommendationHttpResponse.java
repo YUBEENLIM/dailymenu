@@ -26,6 +26,7 @@ public record RecommendationHttpResponse(
             Long id,
             String name,
             String address,
+            String subCategory,
             double distance,
             boolean allowSolo
     ) {}
@@ -48,6 +49,7 @@ public record RecommendationHttpResponse(
                         result.restaurantId(),
                         result.restaurantName(),
                         result.restaurantAddress(),
+                        result.restaurantSubCategory(),
                         result.distanceMeters(),
                         result.allowSolo()
                 ),

@@ -1,3 +1,8 @@
+buildscript {
+	repositories { mavenCentral() }
+	dependencies { classpath 'net.masterthought:cucumber-reporting:5.8.2' }
+}
+
 plugins {
 	id 'java'
 	id 'org.springframework.boot' version '4.0.5'
@@ -63,6 +68,10 @@ dependencies {
 	testImplementation 'org.springframework.boot:spring-boot-starter-test'
 
 	implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.8'
+
+	// Actuator + Prometheus 메트릭 (부하 테스트 모니터링)
+	implementation 'org.springframework.boot:spring-boot-starter-actuator'
+	runtimeOnly 'io.micrometer:micrometer-registry-prometheus'
 }
 
 tasks.withType(JavaCompile).configureEach {
@@ -75,6 +84,31 @@ tasks.withType(Test).configureEach {
 
 tasks.named('test') {
 	useJUnitPlatform()
+	finalizedBy 'cucumberReport'
+}
+
+tasks.register('cucumberReport') {
+	dependsOn 'test'
+	doLast {
+		def jsonFile = file("build/reports/cucumber/cucumber.json")
+		if (!jsonFile.exists()) {
+			logger.warn("Cucumber JSON not found, skipping report generation")
+			return
+		}
+		def reportDir = file("build/reports/cucumber-html")
+		reportDir.mkdirs()
+
+		def config = new net.masterthought.cucumber.Configuration(reportDir, "dailymenu")
+		config.addClassifications("Platform", System.getProperty("os.name"))
+		config.addClassifications("Java", System.getProperty("java.version"))
+		config.addClassifications("Spring Boot", "4.0.5")
+
+		def report = new net.masterthought.cucumber.ReportBuilder(
+			[jsonFile.absolutePath], config)
+		report.generateReports()
+
+		logger.lifecycle("Cucumber report: file:///${reportDir.absolutePath.replace('\\', '/')}/overview-features.html")
+	}
 }
 
 bootRun {

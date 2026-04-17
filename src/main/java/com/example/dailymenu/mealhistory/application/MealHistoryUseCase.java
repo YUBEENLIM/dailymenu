@@ -41,7 +41,18 @@ public class MealHistoryUseCase {
             Long menuId,
             Long restaurantId,
             LocalDateTime eatenAt
-    ) {}
+    ) {
+        public boolean isFromRecommendation() {
+            return recommendationId != null;
+        }
+
+        public void validateDirectInput() {
+            if (menuId == null || restaurantId == null) {
+                throw new BusinessException(ErrorCode.INVALID_REQUEST,
+                        "recommendationId 없을 시 menuId, restaurantId 필수");
+            }
+        }
+    }
 
     public record MealHistoryItemResult(
             Long mealHistoryId,
@@ -60,13 +71,9 @@ public class MealHistoryUseCase {
 
     @Transactional
     public Long recordMeal(MealHistoryCommand command) {
-        MealHistory mealHistory;
-
-        if (command.recommendationId() != null) {
-            mealHistory = createFromRecommendation(command);
-        } else {
-            mealHistory = createFromDirect(command);
-        }
+        MealHistory mealHistory = command.isFromRecommendation()
+                ? createFromRecommendation(command)
+                : createFromDirect(command);
 
         MealHistory saved = mealHistoryRepositoryPort.save(mealHistory);
         log.info("식사 기록 저장 userId={} mealHistoryId={}", command.userId(), saved.getId());
@@ -113,10 +120,7 @@ public class MealHistoryUseCase {
     }
 
     private MealHistory createFromDirect(MealHistoryCommand command) {
-        if (command.menuId() == null || command.restaurantId() == null) {
-            throw new BusinessException(ErrorCode.INVALID_REQUEST,
-                    "recommendationId 없을 시 menuId, restaurantId 필수");
-        }
+        command.validateDirectInput();
 
         Menu menu = menuCatalogRepositoryPort.findMenuById(command.menuId())
                 .orElseThrow(() -> new BusinessException(ErrorCode.MEAL_HISTORY_NOT_FOUND,

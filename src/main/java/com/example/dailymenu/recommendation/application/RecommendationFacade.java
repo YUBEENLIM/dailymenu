@@ -15,7 +15,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
-import java.util.Objects;
 import java.util.Optional;
 
 /**
@@ -52,7 +51,7 @@ public class RecommendationFacade {
             throw new BusinessException(ErrorCode.RATE_LIMIT_EXCEEDED);
         }
 
-        String requestHash = hashRequest(command);
+        String requestHash = command.requestHash();
         Optional<IdempotencyEntry> existing = idempotencyPort.find(command.idempotencyKey());
         if (existing.isPresent()) {
             return handleDuplicateRequest(existing.get(), requestHash);
@@ -139,8 +138,4 @@ public class RecommendationFacade {
         };
     }
 
-    /** 요청 내용 해시 — 같은 멱등성 키로 다른 내용 요청 시 감지용 */
-    private String hashRequest(RecommendationCommand command) {
-        return String.valueOf(Objects.hash(command.latitude(), command.longitude()));
-    }
 }

@@ -51,6 +51,7 @@ erDiagram
     bigint id PK
     varchar name
     varchar category
+    varchar sub_category
     varchar address
     decimal latitude
     decimal longitude
@@ -208,6 +209,7 @@ CREATE TABLE restaurants (
     id              BIGINT          NOT NULL AUTO_INCREMENT,
     name            VARCHAR(255)    NOT NULL,
     category        VARCHAR(100)    NOT NULL,            -- KOREAN, JAPANESE, CHINESE, WESTERN (대표 카테고리)
+    sub_category    VARCHAR(100),                        -- 세부 음식 종류 (카카오 카테고리 3단계, 예: "육류,고기", "초밥,롤")
     address         VARCHAR(500),
     latitude        DECIMAL(10, 7)  NOT NULL,
     longitude       DECIMAL(10, 7)  NOT NULL,

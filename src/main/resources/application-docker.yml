@@ -4,6 +4,8 @@ spring:
     username: root
     password: 1234
     driver-class-name: com.mysql.cj.jdbc.Driver
+    hikari:
+      maximum-pool-size: 30
   data:
     redis:
       host: cache
@@ -11,4 +13,4 @@ spring:
 
 kakao:
   oauth:
-    redirect-uri: http://54.204.87.58:8080/auth/kakao/callback
+    redirect-uri: http://13.209.70.9:8080/auth/kakao/callback

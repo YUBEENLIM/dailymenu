@@ -10,9 +10,47 @@ spring:
       hibernate:
         format_sql: true
     defer-datasource-initialization: true
+  datasource:
+    hikari:
+      maximum-pool-size: 30
   sql:
     init:
       mode: always
+
+# Tomcat 스레드 제한 (CPU 과포화 방어)
+# max-threads: 동시 처리 스레드 수 (기본 200 → 150 제한)
+# accept-count: 모든 스레드 사용 중일 때 큐 대기 수 (초과 시 connection refused)
+server:
+  tomcat:
+    threads:
+      max: 150
+    accept-count: 100
+
+# Actuator + Prometheus
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,prometheus,metrics
+  endpoint:
+    health:
+      show-details: always
+  metrics:
+    tags:
+      application: dailymenu
+
+# Rate Limit (api-spec.md §2)
+rate-limit:
+  apis:
+    recommendations:
+      per-minute: 10
+      per-hour: 100
+    meal-histories:
+      per-minute: 10
+      per-hour: 0
+    restaurants:
+      per-minute: 30
+      per-hour: 0
 
 # JWT (api-spec.md §2: Access Token 1시간, Refresh Token 7일)
 jwt:
@@ -28,6 +66,7 @@ kakao:
     connection-timeout: 500   # ms
     read-timeout: 1500        # ms
     default-radius: 500       # 미터 (기본 탐색 반경)
+    cache-ttl-seconds: 3600   # 카카오 API 응답 캐시 TTL (초). 0이면 비활성화
   oauth:
     client-id: ${KAKAO_REST_API_KEY:your-kakao-rest-api-key}
     client-secret: ${KAKAO_CLIENT_SECRET:}  # 카카오 콘솔에서 클라이언트 시크릿 비활성화 시 빈 값

@@ -14,7 +14,7 @@ import java.util.List;
  * Profile "local" 에서만 활성화된다. 운영 환경에서는 KakaoPlaceAdapter 가 @Primary 로 동작.
  */
 @Component
-@Profile("local & !kakao")
+@Profile("(local | docker) & !kakao")
 @Slf4j
 public class StubPlaceAdapter implements PlacePort {
 
@@ -23,9 +23,9 @@ public class StubPlaceAdapter implements PlacePort {
         log.info("StubPlaceAdapter 호출 lat={} lng={} — 카카오맵 연동 전 고정 데이터 반환", latitude, longitude);
 
         return List.of(
-                new NearbyRestaurant(1L, "테스트 한식당", "서울시 중구 세종대로 110", "음식점 > 한식", 37.5665, 126.9780, 300.0),
-                new NearbyRestaurant(2L, "테스트 일식당", "서울시 중구 을지로 12", "음식점 > 일식", 37.5670, 126.9785, 450.0),
-                new NearbyRestaurant(3L, "테스트 양식당", "서울시 중구 명동길 8", "음식점 > 양식", 37.5680, 126.9790, 700.0)
+                new NearbyRestaurant(1L, "테스트 한식당", "서울시 중구 세종대로 110", "음식점 > 한식", null, 37.5665, 126.9780, 300.0),
+                new NearbyRestaurant(2L, "테스트 일식당", "서울시 중구 을지로 12", "음식점 > 일식 > 초밥,롤", "초밥,롤", 37.5670, 126.9785, 450.0),
+                new NearbyRestaurant(3L, "테스트 양식당", "서울시 중구 명동길 8", "음식점 > 양식 > 피자", "피자", 37.5680, 126.9790, 700.0)
         );
     }
 }

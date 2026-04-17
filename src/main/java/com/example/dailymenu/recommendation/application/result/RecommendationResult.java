@@ -1,6 +1,7 @@
 package com.example.dailymenu.recommendation.application.result;
 
 import com.example.dailymenu.catalog.domain.MenuCategory;
+import com.example.dailymenu.recommendation.domain.MenuCandidate;
 import com.example.dailymenu.recommendation.domain.Recommendation;
 import com.example.dailymenu.recommendation.domain.vo.FallbackLevel;
 
@@ -20,12 +21,35 @@ public record RecommendationResult(
         Long restaurantId,
         String restaurantName,
         String restaurantAddress,
+        String restaurantSubCategory,
         double distanceMeters,
         boolean allowSolo,
         BigDecimal recommendationScore,
         FallbackLevel fallbackLevel,
         String fallbackMessage
 ) {
+
+    /** 추천 결과 생성 — 메뉴 유무 모두 처리 */
+    public static RecommendationResult ofMenu(Recommendation saved, MenuCandidate candidate) {
+        boolean hasMenu = candidate.hasMenu();
+        return new RecommendationResult(
+                saved.getId(),
+                hasMenu ? candidate.menu().getId() : null,
+                hasMenu ? candidate.menu().getName() : null,
+                hasMenu ? candidate.menu().getCategory() : candidate.restaurant().getCategory(),
+                hasMenu ? candidate.menu().getPrice() : 0,
+                hasMenu ? candidate.menu().getCalorie() : null,
+                candidate.restaurant().getId(),
+                candidate.restaurant().getName(),
+                candidate.restaurant().getAddress(),
+                candidate.restaurant().getSubCategory(),
+                candidate.distanceMeters(),
+                candidate.restaurant().isAllowSolo(),
+                saved.getRecommendationScore(),
+                saved.getFallbackLevel(),
+                saved.getFallbackLevel() != null ? saved.getFallbackLevel().getMessage() : null
+        );
+    }
 
     /**
      * 멱등성 COMPLETED 캐시 응답 — DB 추천 데이터 기반 재구성.
@@ -41,6 +65,7 @@ public record RecommendationResult(
                 null,
                 rec.getRestaurantId(),
                 rec.getRestaurantName(),
+                null,
                 null,
                 0.0,
                 false,

@@ -27,7 +27,7 @@ public class TestAdapterConfig {
     @Bean
     public PlacePort placePort() {
         return (lat, lng) -> List.of(
-                new NearbyRestaurant(1L, "테스트 한식당", "서울시 중구 세종대로 110", "음식점 > 한식", lat, lng, 300.0)
+                new NearbyRestaurant(1L, "테스트 한식당", "서울시 중구 세종대로 110", "음식점 > 한식", null, lat, lng, 300.0)
         );
     }
 

@@ -10,6 +10,7 @@ public record NearbyRestaurant(
         String name,
         String address,
         String categoryName,   // 카카오 카테고리 원본 (예: "음식점 > 한식")
+        String subCategory,    // 세부 음식 종류 (예: "육류,고기", "초밥,롤"). 없으면 null
         double latitude,
         double longitude,
         double distanceMeters  // 사용자 위치로부터의 거리 (미터)

@@ -4,6 +4,7 @@ import com.example.dailymenu.place.adapter.out.kakao.dto.KakaoSearchResponse;
 import com.example.dailymenu.place.domain.NearbyRestaurant;
 import com.example.dailymenu.place.domain.port.PlacePort;
 import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Profile;
@@ -27,12 +28,18 @@ import java.util.Set;
 public class KakaoPlaceAdapter implements PlacePort {
 
     private static final Set<String> EXCLUDED_KEYWORDS = Set.of(
-            "카페", "제과", "베이커리", "디저트", "술집", "호프", "바(BAR)", "주점", "라운지"
+            "카페", "제과", "베이커리", "디저트",       // 간식/카페류
+            "술집", "호프", "바(BAR)", "주점", "라운지", // 주류
+            "간식", "아이스크림", "빙수", "도넛", "와플" // 비식사 간식류
     );
     private static final String CACHE_KEY_PREFIX = "place:nearby:";
     private static final String CACHE_LOCK_PREFIX = "place:lock:";
     private static final TypeReference<List<NearbyRestaurant>> LIST_TYPE = new TypeReference<>() {};
-    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
+    private static final ObjectMapper OBJECT_MAPPER;
+    static {
+        OBJECT_MAPPER = new ObjectMapper();
+        OBJECT_MAPPER.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+    }
 
     private final KakaoPlaceClient kakaoPlaceClient;
     private final KakaoPlaceProperties properties;
@@ -83,39 +90,25 @@ public class KakaoPlaceAdapter implements PlacePort {
             return List.of();
         }
 
-        logCategoryDistribution(response.documents());
-
         return response.documents().stream()
                 .filter(doc -> !isExcludedCategory(doc.categoryName()))
                 .map(this::toNearbyRestaurant)
                 .toList();
     }
 
-    // TODO: 카테고리 3단계 값의 메뉴 데이터 활용 가능성 검증용 실험 로그. 검증 완료 후 제거.
-    private void logCategoryDistribution(List<KakaoSearchResponse.Document> documents) {
-        int total = documents.size();
-        int hasDepth3 = 0;
-        int noCategory = 0;
-
-        for (KakaoSearchResponse.Document doc : documents) {
-            String categoryName = doc.categoryName();
-            if (categoryName == null || categoryName.isBlank()) {
-                noCategory++;
-                continue;
-            }
-
-            String[] parts = categoryName.split(" > ");
-            String depth2 = parts.length >= 2 ? parts[1] : "없음";
-            String depth3 = parts.length >= 3 ? parts[2] : "없음";
-
-            if (parts.length >= 3) hasDepth3++;
-
-            log.info("[카테고리실험] place={} | depth2={} | depth3={} | raw={}",
-                    doc.placeName(), depth2, depth3, categoryName);
-        }
-
-        log.info("[카테고리실험] 총 {}건 | 3단계있음={}건({}%) | 카테고리없음={}건",
-                total, hasDepth3, total > 0 ? hasDepth3 * 100 / total : 0, noCategory);
+    /**
+     * 카카오 카테고리에서 서브카테고리 추출. 3단계 이상이면 항상 3단계(index 2)를 사용.
+     * 4단계에 브랜드명이 오는 경우가 많아 3단계가 가장 유의미한 음식 종류 정보.
+     * 예: "음식점 > 한식 > 육류,고기 > 갈비" → "육류,고기"
+     *     "음식점 > 일식 > 초밥,롤" → "초밥,롤"
+     *     "음식점 > 한식" → null
+     */
+    private String extractSubCategory(String categoryName) {
+        if (categoryName == null || categoryName.isBlank()) return null;
+        String[] parts = categoryName.split(" > ");
+        if (parts.length < 3) return null;
+        String sub = parts[2];
+        return sub.length() > 100 ? sub.substring(0, 100) : sub;
     }
 
     /** 소수점 3자리 반올림 (~111m 오차) → 같은 블록 내 요청은 동일 키 */
@@ -181,6 +174,7 @@ public class KakaoPlaceAdapter implements PlacePort {
                 document.placeName(),
                 document.roadAddressName() != null ? document.roadAddressName() : document.addressName(),
                 document.categoryName(),
+                extractSubCategory(document.categoryName()),
                 Double.parseDouble(document.y()),
                 Double.parseDouble(document.x()),
                 Double.parseDouble(document.distance())

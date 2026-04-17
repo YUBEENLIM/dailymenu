@@ -246,6 +246,7 @@ public class RecommendationUseCase {
                 null,
                 nearby.name(),
                 MenuCategory.fromKakaoCategoryName(nearby.categoryName()),
+                nearby.subCategory(),
                 nearby.address(),
                 BigDecimal.valueOf(nearby.latitude()),
                 BigDecimal.valueOf(nearby.longitude()),

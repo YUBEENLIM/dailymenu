@@ -42,6 +42,10 @@ public class RestaurantJpaEntity {
     @Column(name = "category", nullable = false, length = 100)
     private MenuCategory category;
 
+    // 세부 음식 종류 (카카오 카테고리 3단계). 예: "육류,고기", "초밥,롤"
+    @Column(name = "sub_category", length = 100)
+    private String subCategory;
+
     @Column(name = "address", length = 500)
     private String address;
 
@@ -87,6 +91,7 @@ public class RestaurantJpaEntity {
     public static RestaurantJpaEntity createFromExternal(
             String name,
             MenuCategory category,
+            String subCategory,
             String address,
             BigDecimal latitude,
             BigDecimal longitude,
@@ -96,6 +101,7 @@ public class RestaurantJpaEntity {
         RestaurantJpaEntity entity = new RestaurantJpaEntity();
         entity.name = name;
         entity.category = category;
+        entity.subCategory = subCategory;
         entity.address = address;
         entity.latitude = latitude;
         entity.longitude = longitude;

@@ -301,6 +301,14 @@ class _RecommendPageState extends State<RecommendPage> {
               _handleReject('OTHER', memo: controller.text);
             },
           ),
+          const SizedBox(height: 8),
+          SecondaryButton(
+            text: '건너뛰기',
+            fullWidth: true,
+            onPressed: () {
+              _handleReject('OTHER');
+            },
+          ),
         ],
       ),
     );
@@ -487,26 +495,6 @@ class _RecommendPageState extends State<RecommendPage> {
                     style: const TextStyle(
                         fontSize: 24, fontWeight: FontWeight.bold),
                   ),
-                  if (restaurant?['subCategory'] != null) ...[
-                    const SizedBox(height: 4),
-                    Text(
-                      restaurant!['subCategory'],
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w500,
-                        color: AppColors.primary,
-                      ),
-                    ),
-                  ] else ...[
-                    const SizedBox(height: 4),
-                    const Text(
-                      '메뉴 정보 준비 중',
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: AppColors.mutedForeground,
-                      ),
-                    ),
-                  ],
                 ],
                 const SizedBox(height: 12),
                 if (restaurant?['address'] != null)

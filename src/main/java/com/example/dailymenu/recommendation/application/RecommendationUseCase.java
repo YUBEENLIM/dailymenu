@@ -17,7 +17,7 @@ import com.example.dailymenu.recommendation.domain.MenuCandidate;
 import com.example.dailymenu.recommendation.domain.Recommendation;
 import com.example.dailymenu.recommendation.domain.RecommendationPolicy;
 import com.example.dailymenu.recommendation.domain.ScoredCandidate;
-import com.example.dailymenu.recommendation.domain.ScoredRestaurant;
+
 import com.example.dailymenu.recommendation.domain.vo.RejectReason;
 import com.example.dailymenu.recommendation.domain.port.RecommendationHistoryRepositoryPort;
 import com.example.dailymenu.recommendation.domain.port.RecommendationRepositoryPort;
@@ -92,10 +92,11 @@ public class RecommendationUseCase {
         List<Menu> menus = loadMenus(restaurants);
 
         List<MenuCandidate> candidates = MenuCandidate.buildFrom(restaurants, menus, distanceMap);
+        Map<Long, String> subCategoryMap = buildSubCategoryMap(restaurants);
 
-        return policy.recommend(candidates, userProfile, mealHistories, recHistories)
-                .map(scored -> saveMenuResult(command, scored))
-                .orElseGet(() -> tryRestaurantFallback(command, restaurants, menus, distanceMap, userProfile));
+        return policy.recommend(candidates, userProfile, mealHistories, recHistories, subCategoryMap)
+                .map(scored -> saveResult(command, scored))
+                .orElseThrow(() -> new BusinessException(ErrorCode.RECOMMENDATION_NOT_FOUND));
     }
 
     @Transactional
@@ -163,61 +164,40 @@ public class RecommendationUseCase {
 
     // ── 추천 저장 ──
 
-    private RecommendationResult saveMenuResult(RecommendationCommand command, ScoredCandidate best) {
+    /** 메뉴 유무에 따라 통합 저장. fallback 없이 동일 경로. */
+    private RecommendationResult saveResult(RecommendationCommand command, ScoredCandidate best) {
+        MenuCandidate candidate = best.candidate();
+        Long menuId = candidate.hasMenu() ? candidate.menu().getId() : null;
+        String menuName = candidate.hasMenu()
+                ? candidate.menu().getName()
+                : candidate.restaurant().getSubCategory() != null
+                        ? candidate.restaurant().getSubCategory()
+                        : candidate.restaurant().getName() != null
+                                ? candidate.restaurant().getName()
+                                : "메뉴 정보 없음";
+
         Recommendation saved = recommendationRepositoryPort.save(
                 Recommendation.create(
                         command.userId(),
-                        best.candidate().menu().getId(),
-                        best.candidate().menu().getName(),
-                        best.candidate().restaurant().getId(),
-                        best.candidate().restaurant().getName(),
+                        menuId,
+                        menuName,
+                        candidate.restaurant().getId(),
+                        candidate.restaurant().getName(),
                         command.idempotencyKey(),
                         best.score(),
                         null));
 
-        log.info("추천 완료 userId={} recommendationId={} menuName={} score={}",
-                command.userId(), saved.getId(), saved.getMenuName(), saved.getRecommendationScore());
+        log.info("추천 완료 userId={} recommendationId={} menuName={} restaurantName={} score={}",
+                command.userId(), saved.getId(), saved.getMenuName(),
+                saved.getRestaurantName(), saved.getRecommendationScore());
 
-        return RecommendationResult.ofMenu(saved, best.candidate());
+        return RecommendationResult.ofMenu(saved, candidate);
     }
 
-    private RecommendationResult tryRestaurantFallback(
-            RecommendationCommand command,
-            List<Restaurant> restaurants,
-            List<Menu> menus,
-            Map<String, Double> distanceMap,
-            UserProfile userProfile
-    ) {
-        Set<Long> idsWithMenu = menus.stream().map(Menu::getRestaurantId).collect(Collectors.toSet());
-        List<Restaurant> menuless = restaurants.stream()
-                .filter(r -> !idsWithMenu.contains(r.getId())).toList();
-
-        Map<Long, Double> internalDistanceMap = restaurants.stream()
-                .filter(r -> r.getExternalId() != null)
-                .collect(Collectors.toMap(Restaurant::getId,
-                        r -> distanceMap.getOrDefault(r.getExternalId(), 0.0)));
-
-        return policy.recommendRestaurantOnly(menuless, internalDistanceMap, userProfile)
-                .map(scored -> saveRestaurantResult(command, scored))
-                .orElseThrow(() -> new BusinessException(ErrorCode.RECOMMENDATION_NOT_FOUND));
-    }
-
-    private RecommendationResult saveRestaurantResult(RecommendationCommand command, ScoredRestaurant scored) {
-        Recommendation saved = recommendationRepositoryPort.save(
-                Recommendation.create(
-                        command.userId(),
-                        null,
-                        scored.restaurant().getName() + " (메뉴 정보 준비 중)",
-                        scored.restaurant().getId(),
-                        scored.restaurant().getName(),
-                        command.idempotencyKey(),
-                        scored.score(),
-                        null));
-
-        log.info("식당 Fallback 추천 userId={} recommendationId={} restaurantName={} score={}",
-                command.userId(), saved.getId(), saved.getRestaurantName(), saved.getRecommendationScore());
-
-        return RecommendationResult.ofRestaurantOnly(saved, scored);
+    private Map<Long, String> buildSubCategoryMap(List<Restaurant> restaurants) {
+        return restaurants.stream()
+                .filter(r -> r.getSubCategory() != null)
+                .collect(Collectors.toMap(Restaurant::getId, Restaurant::getSubCategory, (a, b) -> a));
     }
 
     // ── 식당 자동 등록: Context 간 조율 (orchestration) ──

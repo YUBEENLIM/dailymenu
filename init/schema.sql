@@ -49,6 +49,7 @@ CREATE TABLE IF NOT EXISTS restaurants (
     id              BIGINT          NOT NULL AUTO_INCREMENT,
     name            VARCHAR(255)    NOT NULL,
     category        VARCHAR(100)    NOT NULL,
+    sub_category    VARCHAR(100),
     address         VARCHAR(500),
     latitude        DECIMAL(10, 7)  NOT NULL,
     longitude       DECIMAL(10, 7)  NOT NULL,

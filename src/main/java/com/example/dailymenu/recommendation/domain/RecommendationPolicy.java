@@ -7,6 +7,7 @@ import com.example.dailymenu.user.domain.UserProfile;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalTime;
 import java.time.temporal.ChronoUnit;
 import java.util.Comparator;
 import java.util.List;
@@ -32,6 +33,12 @@ public class RecommendationPolicy {
 
     private static final int MAX_DISTANCE_METERS = 1000;
     private static final double EXPLORATION_RATIO = 0.1;
+
+    // 시간대 필터링: 아침에 부적합한 sub_category
+    private static final Set<String> MORNING_EXCLUDED_SUB_CATEGORIES = Set.of("육류,고기", "피자");
+    // 점심에 감점 대상 sub_category (제외는 아니고 점수 감점)
+    private static final Set<String> LUNCH_PENALIZED_SUB_CATEGORIES = Set.of("육류,고기");
+    private static final int LUNCH_PENALTY = -15;
 
     private final Random random;
 
@@ -67,6 +74,7 @@ public class RecommendationPolicy {
             List<Recommendation> recommendationHistories
     ) {
         List<MenuCandidate> result = filterByDistance(candidates);
+        result = filterByTimeSlot(result);
         result = filterByMealExclusion(result, mealHistories);
         result = filterBySameDayRecommendation(result, recommendationHistories);
         result = filterByRestrictions(result, userProfile);
@@ -80,6 +88,35 @@ public class RecommendationPolicy {
         return candidates.stream()
                 .filter(c -> c.distanceMeters() <= MAX_DISTANCE_METERS)
                 .toList();
+    }
+
+    /**
+     * 1.5. 시간대 필터 — 아침(6~11시)에 치킨/피자/고깃집 제외.
+     * 점심 감점은 scoreAndRank에서 처리. 저녁은 제한 없음.
+     */
+    List<MenuCandidate> filterByTimeSlot(List<MenuCandidate> candidates) {
+        LocalTime now = LocalTime.now();
+        if (!isMorning(now)) return candidates;
+
+        return candidates.stream()
+                .filter(c -> !isMorningExcluded(c))
+                .toList();
+    }
+
+    private boolean isMorningExcluded(MenuCandidate candidate) {
+        // 치킨: category(depth2)로 판별
+        if (candidate.restaurant().getCategory() == MenuCategory.CHICKEN) return true;
+        // 피자, 육류,고기: sub_category로 판별
+        String sub = candidate.restaurant().getSubCategory();
+        return sub != null && MORNING_EXCLUDED_SUB_CATEGORIES.contains(sub);
+    }
+
+    private boolean isMorning(LocalTime time) {
+        return !time.isBefore(LocalTime.of(6, 0)) && time.isBefore(LocalTime.of(11, 0));
+    }
+
+    private boolean isLunch(LocalTime time) {
+        return !time.isBefore(LocalTime.of(11, 0)) && time.isBefore(LocalTime.of(15, 0));
     }
 
     /**
@@ -173,8 +210,9 @@ public class RecommendationPolicy {
         int total = distanceScore(candidate.distanceMeters())
                 + categoryScore(candidate.menu().getCategory(), userProfile)
                 + mealHistoryScore(candidate.menu().getId(), mealHistories)
-                + recommendationHistoryScore(candidate.menu().getId(), recommendationHistories);
-        return BigDecimal.valueOf(total);
+                + recommendationHistoryScore(candidate.menu().getId(), recommendationHistories)
+                + timeSlotScore(candidate);
+        return BigDecimal.valueOf(Math.max(0, total));
     }
 
     /** 거리 점수 (30점 만점) */
@@ -219,6 +257,15 @@ public class RecommendationPolicy {
         if (minDaysAgo == 2) return 3;
         if (minDaysAgo == 3) return 7;
         return 10;
+    }
+
+    /** 시간대 점수 보정. 점심에 고깃집 감점(-15). 그 외 시간대 0 */
+    int timeSlotScore(MenuCandidate candidate) {
+        LocalTime now = LocalTime.now();
+        if (!isLunch(now)) return 0;
+        String sub = candidate.restaurant().getSubCategory();
+        if (sub != null && LUNCH_PENALIZED_SUB_CATEGORIES.contains(sub)) return LUNCH_PENALTY;
+        return 0;
     }
 
     private Optional<ScoredCandidate> selectBest(List<ScoredCandidate> scored) {

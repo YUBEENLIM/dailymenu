@@ -442,14 +442,26 @@ class _RecommendPageState extends State<RecommendPage> {
                     style: const TextStyle(
                         fontSize: 24, fontWeight: FontWeight.bold),
                   ),
-                  const SizedBox(height: 4),
-                  const Text(
-                    '메뉴 정보 준비 중',
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: AppColors.mutedForeground,
+                  if (restaurant?['subCategory'] != null) ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      restaurant!['subCategory'],
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w500,
+                        color: AppColors.primary,
+                      ),
                     ),
-                  ),
+                  ] else ...[
+                    const SizedBox(height: 4),
+                    const Text(
+                      '메뉴 정보 준비 중',
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: AppColors.mutedForeground,
+                      ),
+                    ),
+                  ],
                 ],
                 const SizedBox(height: 12),
                 if (restaurant?['address'] != null)
@@ -472,11 +484,26 @@ class _RecommendPageState extends State<RecommendPage> {
                   ),
                 ],
                 const SizedBox(height: 12),
-                if (menu?['category'] != null)
-                  AppChip(
-                    label: categoryLabel(menu!['category']),
-                    selected: true,
-                  ),
+                Wrap(
+                  spacing: 8,
+                  children: [
+                    if (menu?['category'] != null)
+                      AppChip(
+                        label: categoryLabel(menu!['category']),
+                        selected: true,
+                      )
+                    else if (!hasMenu && restaurant?['subCategory'] != null)
+                      AppChip(
+                        label: restaurant!['subCategory'],
+                        selected: true,
+                      ),
+                    if (hasMenu && restaurant?['subCategory'] != null)
+                      AppChip(
+                        label: restaurant!['subCategory'],
+                        selected: false,
+                      ),
+                  ],
+                ),
               ],
             ),
           ),

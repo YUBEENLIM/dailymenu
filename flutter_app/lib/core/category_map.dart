@@ -16,6 +16,7 @@ const enumToLabel = {
   'FAST_FOOD': '패스트푸드',
   'ASIAN': '아시안',
   'CAFE': '카페/디저트',
+  'CHICKEN': '치킨',
   'OTHER': '기타',
 };
 

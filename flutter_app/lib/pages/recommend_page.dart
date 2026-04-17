@@ -126,10 +126,15 @@ class _RecommendPageState extends State<RecommendPage> {
 
   void _openMap() {
     final restaurant = _currentResult?['restaurant'] as Map<String, dynamic>?;
-    final address = restaurant?['address'] ?? '';
-    final name = restaurant?['name'] ?? '';
-    final query = Uri.encodeComponent(address.isNotEmpty ? '$name $address' : name);
-    launchUrl(Uri.parse('https://map.kakao.com/?q=$query'));
+    final externalId = restaurant?['externalId'];
+    if (externalId != null) {
+      launchUrl(Uri.parse('https://place.map.kakao.com/$externalId'));
+    } else {
+      final address = restaurant?['address'] ?? '';
+      final name = restaurant?['name'] ?? '';
+      final query = Uri.encodeComponent(address.isNotEmpty ? '$name $address' : name);
+      launchUrl(Uri.parse('https://map.kakao.com/?q=$query'));
+    }
   }
 
   Future<void> _getRecommendation() async {

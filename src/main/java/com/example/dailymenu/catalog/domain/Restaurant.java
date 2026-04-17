@@ -17,7 +17,7 @@ public class Restaurant {
     private final Long id;
     private final String name;
     private final MenuCategory category; // 대표 카테고리 — 식당 탐색 기준
-    private final String subCategory;    // 세부 음식 종류 (예: "육류,고기", "초밥,롤"). 없으면 null
+    private final String subCategory;    // 세부 음식 종류 (예: "고기", "초밥"). 없으면 null
     private final String address;
     private final BigDecimal latitude;
     private final BigDecimal longitude;

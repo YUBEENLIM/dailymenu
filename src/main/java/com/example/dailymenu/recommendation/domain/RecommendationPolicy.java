@@ -8,6 +8,7 @@ import com.example.dailymenu.user.domain.UserProfile;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalTime;
+import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
 import java.util.Comparator;
 import java.util.List;
@@ -34,10 +35,10 @@ public class RecommendationPolicy {
     private static final int MAX_DISTANCE_METERS = 1000;
     private static final double EXPLORATION_RATIO = 0.1;
 
-    // 시간대 필터링: 아침에 부적합한 sub_category
-    private static final Set<String> MORNING_EXCLUDED_SUB_CATEGORIES = Set.of("육류,고기", "피자");
+    // 시간대 필터링: 아침에 부적합한 sub_category (정제 후 값 기준)
+    private static final Set<String> MORNING_EXCLUDED_SUB_CATEGORIES = Set.of("고기", "피자");
     // 점심에 감점 대상 sub_category (제외는 아니고 점수 감점)
-    private static final Set<String> LUNCH_PENALIZED_SUB_CATEGORIES = Set.of("육류,고기");
+    private static final Set<String> LUNCH_PENALIZED_SUB_CATEGORIES = Set.of("고기");
     private static final int LUNCH_PENALTY = -15;
 
     private final Random random;
@@ -57,13 +58,14 @@ public class RecommendationPolicy {
             List<MealHistory> mealHistories,
             List<Recommendation> recommendationHistories
     ) {
+        LocalTime now = LocalTime.now(ZoneId.of("Asia/Seoul"));
         List<MenuCandidate> filtered = applyFilters(
-                candidates, userProfile, mealHistories, recommendationHistories);
+                candidates, userProfile, mealHistories, recommendationHistories, now);
         if (filtered.isEmpty()) {
             return Optional.empty();
         }
         List<ScoredCandidate> scored = scoreAndRank(
-                filtered, userProfile, mealHistories, recommendationHistories);
+                filtered, userProfile, mealHistories, recommendationHistories, now);
         return selectBest(scored);
     }
 
@@ -71,10 +73,11 @@ public class RecommendationPolicy {
             List<MenuCandidate> candidates,
             UserProfile userProfile,
             List<MealHistory> mealHistories,
-            List<Recommendation> recommendationHistories
+            List<Recommendation> recommendationHistories,
+            LocalTime now
     ) {
         List<MenuCandidate> result = filterByDistance(candidates);
-        result = filterByTimeSlot(result);
+        result = filterByTimeSlot(result, now);
         result = filterByMealExclusion(result, mealHistories);
         result = filterBySameDayRecommendation(result, recommendationHistories);
         result = filterByRestrictions(result, userProfile);
@@ -94,8 +97,7 @@ public class RecommendationPolicy {
      * 1.5. 시간대 필터 — 아침(6~11시)에 치킨/피자/고깃집 제외.
      * 점심 감점은 scoreAndRank에서 처리. 저녁은 제한 없음.
      */
-    List<MenuCandidate> filterByTimeSlot(List<MenuCandidate> candidates) {
-        LocalTime now = LocalTime.now();
+    List<MenuCandidate> filterByTimeSlot(List<MenuCandidate> candidates, LocalTime now) {
         if (!isMorning(now)) return candidates;
 
         return candidates.stream()
@@ -190,11 +192,12 @@ public class RecommendationPolicy {
             List<MenuCandidate> candidates,
             UserProfile userProfile,
             List<MealHistory> mealHistories,
-            List<Recommendation> recommendationHistories
+            List<Recommendation> recommendationHistories,
+            LocalTime now
     ) {
         return candidates.stream()
                 .map(c -> new ScoredCandidate(c,
-                        calculateScore(c, userProfile, mealHistories, recommendationHistories)))
+                        calculateScore(c, userProfile, mealHistories, recommendationHistories, now)))
                 .sorted(Comparator.<ScoredCandidate, BigDecimal>comparing(ScoredCandidate::score)
                         .reversed()
                         .thenComparingDouble(s -> s.candidate().distanceMeters()))
@@ -205,13 +208,14 @@ public class RecommendationPolicy {
             MenuCandidate candidate,
             UserProfile userProfile,
             List<MealHistory> mealHistories,
-            List<Recommendation> recommendationHistories
+            List<Recommendation> recommendationHistories,
+            LocalTime now
     ) {
         int total = distanceScore(candidate.distanceMeters())
                 + categoryScore(candidate.menu().getCategory(), userProfile)
                 + mealHistoryScore(candidate.menu().getId(), mealHistories)
                 + recommendationHistoryScore(candidate.menu().getId(), recommendationHistories)
-                + timeSlotScore(candidate);
+                + timeSlotScore(candidate, now);
         return BigDecimal.valueOf(Math.max(0, total));
     }
 
@@ -260,8 +264,7 @@ public class RecommendationPolicy {
     }
 
     /** 시간대 점수 보정. 점심에 고깃집 감점(-15). 그 외 시간대 0 */
-    int timeSlotScore(MenuCandidate candidate) {
-        LocalTime now = LocalTime.now();
+    int timeSlotScore(MenuCandidate candidate, LocalTime now) {
         if (!isLunch(now)) return 0;
         String sub = candidate.restaurant().getSubCategory();
         if (sub != null && LUNCH_PENALIZED_SUB_CATEGORIES.contains(sub)) return LUNCH_PENALTY;

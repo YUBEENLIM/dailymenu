@@ -99,8 +99,9 @@ public class KakaoPlaceAdapter implements PlacePort {
     /**
      * 카카오 카테고리에서 서브카테고리 추출. 3단계 이상이면 항상 3단계(index 2)를 사용.
      * 4단계에 브랜드명이 오는 경우가 많아 3단계가 가장 유의미한 음식 종류 정보.
-     * 예: "음식점 > 한식 > 육류,고기 > 갈비" → "육류,고기"
-     *     "음식점 > 일식 > 초밥,롤" → "초밥,롤"
+     * 쉼표 구분 값은 앞 단어만 사용하고, "육류"는 "고기"로 치환.
+     * 예: "음식점 > 한식 > 육류,고기 > 갈비" → "고기"
+     *     "음식점 > 일식 > 초밥,롤" → "초밥"
      *     "음식점 > 한식" → null
      */
     private String extractSubCategory(String categoryName) {
@@ -108,6 +109,14 @@ public class KakaoPlaceAdapter implements PlacePort {
         String[] parts = categoryName.split(" > ");
         if (parts.length < 3) return null;
         String sub = parts[2];
+        // 쉼표 구분 값은 앞 단어만 사용 (예: "초밥,롤" → "초밥")
+        if (sub.contains(",")) {
+            sub = sub.split(",")[0].trim();
+        }
+        // "육류"는 "고기"로 치환 (사용자 친화적 표현)
+        if ("육류".equals(sub)) {
+            sub = "고기";
+        }
         return sub.length() > 100 ? sub.substring(0, 100) : sub;
     }
 

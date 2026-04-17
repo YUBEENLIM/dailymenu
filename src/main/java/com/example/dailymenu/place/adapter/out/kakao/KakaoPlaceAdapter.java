@@ -83,10 +83,39 @@ public class KakaoPlaceAdapter implements PlacePort {
             return List.of();
         }
 
+        logCategoryDistribution(response.documents());
+
         return response.documents().stream()
                 .filter(doc -> !isExcludedCategory(doc.categoryName()))
                 .map(this::toNearbyRestaurant)
                 .toList();
+    }
+
+    // TODO: 카테고리 3단계 값의 메뉴 데이터 활용 가능성 검증용 실험 로그. 검증 완료 후 제거.
+    private void logCategoryDistribution(List<KakaoSearchResponse.Document> documents) {
+        int total = documents.size();
+        int hasDepth3 = 0;
+        int noCategory = 0;
+
+        for (KakaoSearchResponse.Document doc : documents) {
+            String categoryName = doc.categoryName();
+            if (categoryName == null || categoryName.isBlank()) {
+                noCategory++;
+                continue;
+            }
+
+            String[] parts = categoryName.split(" > ");
+            String depth2 = parts.length >= 2 ? parts[1] : "없음";
+            String depth3 = parts.length >= 3 ? parts[2] : "없음";
+
+            if (parts.length >= 3) hasDepth3++;
+
+            log.info("[카테고리실험] place={} | depth2={} | depth3={} | raw={}",
+                    doc.placeName(), depth2, depth3, categoryName);
+        }
+
+        log.info("[카테고리실험] 총 {}건 | 3단계있음={}건({}%) | 카테고리없음={}건",
+                total, hasDepth3, total > 0 ? hasDepth3 * 100 / total : 0, noCategory);
     }
 
     /** 소수점 3자리 반올림 (~111m 오차) → 같은 블록 내 요청은 동일 키 */

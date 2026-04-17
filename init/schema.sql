@@ -91,6 +91,7 @@ CREATE TABLE IF NOT EXISTS recommendations (
     idempotency_key      VARCHAR(255)    NOT NULL,
     status               VARCHAR(50)     NOT NULL,
     reject_reason        VARCHAR(50),
+    reject_detail        VARCHAR(500),
     recommendation_score DECIMAL(5,2),
     fallback_level       VARCHAR(20),
     created_at           DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,

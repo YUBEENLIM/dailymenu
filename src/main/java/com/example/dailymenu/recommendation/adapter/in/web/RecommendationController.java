@@ -67,7 +67,7 @@ public class RecommendationController {
             @PathVariable Long id,
             @RequestBody @Valid RejectHttpRequest request
     ) {
-        StatusUpdateResult result = facade.reject(id, request.reason());
+        StatusUpdateResult result = facade.reject(id, request.reason(), request.memo());
         return new RejectResponse(
                 result.recommendationId(), result.status().name());
     }

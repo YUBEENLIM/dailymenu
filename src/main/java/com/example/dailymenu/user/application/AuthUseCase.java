@@ -82,6 +82,7 @@ public class AuthUseCase {
         return issueTokens(userId);
     }
 
+    @Transactional(readOnly = true)
     public RefreshResult refresh(String refreshToken) {
         Long userId;
         try {
@@ -101,6 +102,7 @@ public class AuthUseCase {
         return new RefreshResult(newAccessToken, tokenPort.getAccessTokenExpirationSeconds());
     }
 
+    @Transactional
     public void logout(Long userId) {
         refreshTokenPort.invalidate(userId);
         log.info("로그아웃 완료 userId={}", userId);

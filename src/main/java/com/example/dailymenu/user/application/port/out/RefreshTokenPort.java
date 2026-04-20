@@ -1,9 +1,11 @@
 package com.example.dailymenu.user.application.port.out;
 
 /**
- * Refresh Token 저장소 Port (Redis).
- * 로그아웃 시 블랙리스트 등록 (api-spec.md §5).
- * RedisRefreshTokenAdapter 가 구현.
+ * Refresh Token 저장소 Port.
+ * 로그아웃 시 키 삭제로 블랙리스트 대체 (api-spec.md §5).
+ *
+ * 구현: CachedRefreshTokenAdapter (@Primary) — DB(영속성) + Redis(성능) Cache-aside.
+ *      Redis 다운 시에도 DB로 fallback되어 사용자 강제 로그아웃 방지.
  */
 public interface RefreshTokenPort {
 

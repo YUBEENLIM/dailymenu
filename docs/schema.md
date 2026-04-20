@@ -118,6 +118,7 @@ erDiagram
 | `menus` | 메뉴 마스터 데이터 | 식당/메뉴 카탈로그 |
 | `recommendations` | 추천 결과 기록 | 추천 / 추천 이력 |
 | `meal_histories` | 사용자 실제 식사 기록 | 식사 이력 |
+| `refresh_tokens` | JWT Refresh Token 영속 저장 (Redis 다운 fallback) | 사용자 프로필 |
 | `places` | 내부화된 장소 데이터 | 장소/위치 |
 
 ---
@@ -308,6 +309,25 @@ CREATE TABLE meal_histories (
 > `is_confirmed = TRUE`: 먹었어요 버튼 누름 → 3일간 완전 제외
 > `is_confirmed = FALSE`: 버튼 안 누름 → 2일간 추천 점수 감소만 적용
 
+### refresh_tokens
+
+```sql
+CREATE TABLE refresh_tokens (
+    id          BIGINT          NOT NULL AUTO_INCREMENT,
+    user_id     BIGINT          NOT NULL UNIQUE,                 -- 사용자당 1개 토큰
+    token       VARCHAR(512)    NOT NULL,
+    expires_at  DATETIME        NOT NULL,
+    created_at  DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at  DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    FOREIGN KEY (user_id) REFERENCES users(id),
+    INDEX idx_expires_at (expires_at)
+);
+```
+
+> Source of Truth로 DB 사용. Redis는 Cache-aside 캐시 레이어 (성능).
+> Redis 다운 시에도 사용자 강제 로그아웃 방지 — `CachedRefreshTokenAdapter`가 DB로 fallback.
+
 ---
 
 ## 4. 인덱스 전략
@@ -322,6 +342,8 @@ CREATE TABLE meal_histories (
 | `restaurants` | `(latitude, longitude)` | 초기에는 일반 인덱스 사용. 월 활성 사용자 10만 초과 또는 위치 쿼리 응답 500ms 초과 시 SPATIAL INDEX 또는 Redis GEO로 전환 |
 | `menus` | `(restaurant_id)` | 식당별 메뉴 조회 시 Full Scan 방지 |
 | `user_restrictions` | `(user_id, type)` | 사용자별 제한 조건 빠른 조회 |
+| `refresh_tokens` | `user_id` UNIQUE | 사용자당 1개 토큰 보장 + 빠른 조회 |
+| `refresh_tokens` | `expires_at` | 만료 토큰 일괄 삭제 배치 (선택 구현) |
 
 ---
 

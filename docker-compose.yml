@@ -3,6 +3,7 @@ services:
   db:
     image: mysql:8.0
     container_name: dailymenu-mysql
+    restart: unless-stopped
     ports:
       - "3307:3306"
     environment:
@@ -25,6 +26,7 @@ services:
   cache:
     image: redis:7
     container_name: dailymenu-redis
+    restart: unless-stopped
     ports:
       - "6379:6379"
     volumes:
@@ -41,6 +43,7 @@ services:
   app:
     build: .
     container_name: dailymenu-app
+    restart: unless-stopped
     ports:
       - "8080:8080"
     environment:

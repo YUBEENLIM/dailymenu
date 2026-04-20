@@ -68,8 +68,8 @@ public class MealHistoryPersistenceAdapter implements MealHistoryRepositoryPort 
 
     @Override
     @Transactional
-    public void deleteById(Long id) {
-        mealHistoryJpaRepository.deleteById(id);
+    public void delete(MealHistory mealHistory) {
+        mealHistoryJpaRepository.deleteById(mealHistory.getId());
     }
 
     private MealHistoryJpaEntity toEntity(MealHistory domain) {

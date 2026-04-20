@@ -23,5 +23,8 @@ public interface MealHistoryRepositoryPort {
 
     Optional<MealHistory> findById(Long id);
 
-    void deleteById(Long id);
+    /**
+     * 이미 조회한 도메인 객체를 그대로 받아 삭제 — Spring Data JPA deleteById의 SELECT 재실행을 회피.
+     */
+    void delete(MealHistory mealHistory);
 }

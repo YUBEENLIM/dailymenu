@@ -73,6 +73,7 @@ public class RecommendationPersistenceAdapter
                 .idempotencyKey(domain.getIdempotencyKey())
                 .status(domain.getStatus())
                 .rejectReason(domain.getRejectReason())
+                .rejectDetail(domain.getRejectDetail())
                 .recommendationScore(domain.getRecommendationScore())
                 .fallbackLevel(domain.getFallbackLevel())
                 .build();

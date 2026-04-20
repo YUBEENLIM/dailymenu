@@ -380,8 +380,8 @@ Idempotency-Key: {uuid}   # 필수
 
 | 필드 | 타입 | 필수 | 제약 | 설명 |
 |---|---|---|---|---|
-| reason | String | Y | TOO_FAR / NOT_HUNGRY / PREFER_SOLO / OTHER | 거절 사유 |
-| memo | String | N | - | 기타 메모 |
+| reason | String | Y | TOO_FAR / ATE_RECENTLY / NOT_THIS_TYPE / OTHER | 거절 사유 |
+| memo | String | N | 최대 200자 | 기타 메모 (서버 reject_detail 컬럼에 저장) |
 ```json
 {
   "reason": "TOO_FAR",
@@ -623,12 +623,12 @@ Idempotency-Key: {uuid}   # 필수
 
 ### RejectReason
 
-| 값 | 설명 |
-|---|---|
-| TOO_FAR | 너무 멀어요 |
-| NOT_HUNGRY | 지금 먹고 싶지 않아요 |
-| PREFER_SOLO | 혼자 가기 애매해요 |
-| OTHER | 기타 |
+| 값 | 설명 | 재추천 반영 |
+|---|---|---|
+| TOO_FAR | 너무 멀어요 | 2시간 내 700m+ 식당 -10점 감점 |
+| ATE_RECENTLY | 최근에 먹었어요 | 2시간 내 같은 subCategory 추천 점수 0점 |
+| NOT_THIS_TYPE | 이 종류 말고요 | 2시간 내 같은 subCategory 식당 전체 제외 |
+| OTHER | 기타 (memo 필드에 사유 입력) | 해당 식당만 제외 |
 
 ### FallbackLevel
 

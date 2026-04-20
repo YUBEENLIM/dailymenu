@@ -100,21 +100,28 @@ public class RecommendationUseCase {
     }
 
     @Transactional
-    public StatusUpdateResult acceptRecommendation(Long recommendationId) {
-        Recommendation rec = recommendationRepositoryPort.findById(recommendationId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.RECOMMENDATION_NOT_FOUND));
+    public StatusUpdateResult acceptRecommendation(Long userId, Long recommendationId) {
+        Recommendation rec = loadOwnedRecommendation(userId, recommendationId);
         rec.accept();
         recommendationRepositoryPort.save(rec);
         return new StatusUpdateResult(rec.getId(), rec.getStatus());
     }
 
     @Transactional
-    public StatusUpdateResult rejectRecommendation(Long recommendationId, RejectReason reason, String detail) {
-        Recommendation rec = recommendationRepositoryPort.findById(recommendationId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.RECOMMENDATION_NOT_FOUND));
+    public StatusUpdateResult rejectRecommendation(Long userId, Long recommendationId, RejectReason reason, String detail) {
+        Recommendation rec = loadOwnedRecommendation(userId, recommendationId);
         rec.reject(reason, detail);
         recommendationRepositoryPort.save(rec);
         return new StatusUpdateResult(rec.getId(), rec.getStatus());
+    }
+
+    private Recommendation loadOwnedRecommendation(Long userId, Long recommendationId) {
+        Recommendation rec = recommendationRepositoryPort.findById(recommendationId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.RECOMMENDATION_NOT_FOUND));
+        if (!rec.getUserId().equals(userId)) {
+            throw new BusinessException(ErrorCode.FORBIDDEN);
+        }
+        return rec;
     }
 
     @Transactional(readOnly = true)

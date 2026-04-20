@@ -1,0 +1,16 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "if": "Bash(git add*)",
+            "command": "python -c 'import sys,json; cmd=json.load(sys.stdin)[\"tool_input\"][\"command\"]; sys.exit(0) if \"REVIEWED=1\" in cmd else print(json.dumps({\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"git add 차단됨. 코드 변경에 대한 에이전트 리뷰(security/arch/code-analyzer 3개 병렬) 먼저 실행 후 결과 보고 → 사용자 승인 → REVIEWED=1 git add ... 형태로 재실행. Trivial 변경(docs/**/*.md만, 주석/whitespace만, .claude/, dev-logs/만)은 리뷰 생략 가능 — 바로 REVIEWED=1 prefix 사용.\"}}))'"
+          }
+        ]
+      }
+    ]
+  }
+}

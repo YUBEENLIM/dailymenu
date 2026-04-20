@@ -96,6 +96,7 @@ public class RecommendationJpaEntity {
             String idempotencyKey,
             RecommendationStatus status,
             RejectReason rejectReason,
+            String rejectDetail,
             BigDecimal recommendationScore,
             FallbackLevel fallbackLevel
     ) {
@@ -108,6 +109,7 @@ public class RecommendationJpaEntity {
         this.idempotencyKey = idempotencyKey;
         this.status = status;
         this.rejectReason = rejectReason;
+        this.rejectDetail = rejectDetail;
         this.recommendationScore = recommendationScore;
         this.fallbackLevel = fallbackLevel;
     }

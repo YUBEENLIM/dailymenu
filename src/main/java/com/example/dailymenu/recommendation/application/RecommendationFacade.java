@@ -92,12 +92,12 @@ public class RecommendationFacade {
         }
     }
 
-    public StatusUpdateResult accept(Long recommendationId) {
-        return recommendationUseCase.acceptRecommendation(recommendationId);
+    public StatusUpdateResult accept(Long userId, Long recommendationId) {
+        return recommendationUseCase.acceptRecommendation(userId, recommendationId);
     }
 
-    public StatusUpdateResult reject(Long recommendationId, RejectReason reason, String detail) {
-        return recommendationUseCase.rejectRecommendation(recommendationId, reason, detail);
+    public StatusUpdateResult reject(Long userId, Long recommendationId, RejectReason reason, String detail) {
+        return recommendationUseCase.rejectRecommendation(userId, recommendationId, reason, detail);
     }
 
     private RecommendationResult handleDuplicateRequest(

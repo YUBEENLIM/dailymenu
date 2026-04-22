@@ -3,6 +3,8 @@ package com.example.dailymenu.place.adapter.out.kakao;
 import com.example.dailymenu.place.adapter.out.kakao.dto.KakaoSearchResponse;
 import com.example.dailymenu.place.domain.NearbyRestaurant;
 import com.example.dailymenu.place.domain.port.PlacePort;
+import com.example.dailymenu.shared.domain.exception.BusinessException;
+import com.example.dailymenu.shared.domain.exception.ErrorCode;
 import com.example.dailymenu.shared.util.JitteredTtl;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.DeserializationFeature;
@@ -11,6 +13,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Profile;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Component;
+import org.springframework.web.client.RestClientException;
 
 import java.time.Duration;
 import java.util.List;
@@ -35,6 +38,9 @@ public class KakaoPlaceAdapter implements PlacePort {
     );
     private static final String CACHE_KEY_PREFIX = "place:nearby:";
     private static final String CACHE_LOCK_PREFIX = "place:lock:";
+    private static final String FAILURE_MARKER_SUFFIX = ":fail";
+    private static final long EMPTY_RESULT_TTL_SECONDS = 60L;       // 외곽/심야 빈 결과 반복 호출 방지
+    private static final long FAILURE_MARKER_TTL_SECONDS = 30L;     // 선점자 API 실패 후 후속 요청 보호 구간
     private static final TypeReference<List<NearbyRestaurant>> LIST_TYPE = new TypeReference<>() {};
     private static final ObjectMapper OBJECT_MAPPER;
     static {
@@ -64,20 +70,36 @@ public class KakaoPlaceAdapter implements PlacePort {
 
     /** 캐시 MISS → stampede 방지 락 획득 후 카카오 API 호출 */
     private List<NearbyRestaurant> fetchAndCache(String cacheKey, double latitude, double longitude) {
+        // Negative caching: 락 진입 전 early-exit. 마커 있으면 카카오 API 재호출 없이 빈 결과 반환
+        if (hasFailureMarker(cacheKey)) {
+            log.debug("실패 마커 감지 → 빈 결과 반환 key={}", cacheKey);
+            return List.of();
+        }
+
         // stampede 방지: SET NX로 1건만 카카오 API 호출
         boolean lockAcquired = tryStampedeLock(cacheKey);
         if (!lockAcquired) {
-            // 선점자가 API 호출 중 → 캐시 재조회로 갱신 완료 대기. 대기 상한 ≈ read-timeout
+            // 선점자가 API 호출 중 → 캐시 재조회로 갱신 완료 대기. 대기 상한 ≈ read-timeout + margin
             List<NearbyRestaurant> retry = awaitCacheFill(cacheKey);
             if (retry != null) return retry;
+            // awaitCacheFill 대기 중 선점자가 실패해서 마커를 남겼을 수 있음 → 재확인으로 race window 차단
+            if (hasFailureMarker(cacheKey)) {
+                log.debug("대기 중 실패 마커 감지 → 빈 결과 반환 key={}", cacheKey);
+                return List.of();
+            }
             // 선점자 지연/실패 시 fetch fallback — 서비스 중단 방지. 스탬피드 완전 차단은 아님
             log.warn("캐시 대기 실패 → fallback 직접 호출 key={} (선점자 지연/실패 추정)", cacheKey);
         }
 
         try {
             List<NearbyRestaurant> result = callKakaoApi(latitude, longitude);
-            if (!result.isEmpty()) putToCache(cacheKey, result); // #2: 빈 결과 캐시 방지
+            putToCache(cacheKey, result); // 빈 결과도 짧은 TTL로 저장(putToCache 내부 분기)
+            clearFailureMarker(cacheKey); // 정상 복구 시 남아있을 수 있는 이전 마커 즉시 삭제
             return result;
+        } catch (RestClientException | BusinessException e) {
+            // 외부 API 불가(네트워크·5xx·도메인 실패)만 마커 대상 — 파싱/프로그래밍 오류는 제외
+            putFailureMarker(cacheKey);
+            throw e;
         } finally {
             if (lockAcquired) releaseStampedeLock(cacheKey);
         }
@@ -110,9 +132,10 @@ public class KakaoPlaceAdapter implements PlacePort {
         KakaoSearchResponse response = kakaoPlaceClient.searchByCategory(
                 latitude, longitude, properties.defaultRadius());
 
+        // null/문서 누락은 "정상 빈 결과"가 아니라 외부 API 이상 — 호출자가 마커 생성하도록 예외 전파
         if (response == null || response.documents() == null) {
-            log.warn("카카오 API 응답이 비어있음 lat={} lng={}", latitude, longitude);
-            return List.of();
+            log.warn("카카오 API 응답이 비어있음(null) lat={} lng={}", latitude, longitude);
+            throw new BusinessException(ErrorCode.EXTERNAL_API_UNAVAILABLE);
         }
 
         return response.documents().stream()
@@ -162,8 +185,10 @@ public class KakaoPlaceAdapter implements PlacePort {
                     .setIfAbsent(lockKey, "1", Duration.ofSeconds(5));
             return Boolean.TRUE.equals(acquired);
         } catch (Exception e) {
-            log.warn("stampede 락 획득 실패 key={}", cacheKey, e);
-            return false;
+            // Redis 장애 시 true 반환: 모든 요청이 awaitCacheFill로 몰려 2초 대기 후 fallback 폭주하는 것보다
+            // 본인이 선점자로 간주하고 즉시 API 호출하는 편이 낫다. finally의 release는 try-catch로 보호됨
+            log.warn("stampede 락 확인 실패(Redis 장애?) — 선점자로 간주 key={}", cacheKey, e);
+            return true;
         }
     }
 
@@ -191,14 +216,48 @@ public class KakaoPlaceAdapter implements PlacePort {
         if (properties.cacheTtlSeconds() <= 0) return;
         try {
             String json = OBJECT_MAPPER.writeValueAsString(result);
+            // 빈 결과는 짧은 TTL(negative caching) — 반복 외부 호출 방지 + 신규 식당 등록 반영 지연 최소화
+            long baseTtlSec = result.isEmpty()
+                    ? Math.min(EMPTY_RESULT_TTL_SECONDS, properties.cacheTtlSeconds())
+                    : properties.cacheTtlSeconds();
             // TTL Jitter: 동일 격자 키가 동시 만료되지 않도록 ±ratio 분산
             Duration ttl = JitteredTtl.of(
-                    Duration.ofSeconds(properties.cacheTtlSeconds()),
+                    Duration.ofSeconds(baseTtlSec),
                     properties.cacheTtlJitterRatio());
             redisTemplate.opsForValue().set(cacheKey, json, ttl);
             log.debug("카카오 API 캐시 저장 key={} size={} ttl={}s", cacheKey, result.size(), ttl.toSeconds());
         } catch (Exception e) {
             log.warn("카카오 API 캐시 저장 실패 key={}", cacheKey, e);
+        }
+    }
+
+    /** API 실패 후 짧은 구간 동안 후속 요청이 같은 외부 호출을 반복하지 않도록 마커 기록 */
+    private void putFailureMarker(String cacheKey) {
+        try {
+            redisTemplate.opsForValue().set(
+                    cacheKey + FAILURE_MARKER_SUFFIX, "1",
+                    Duration.ofSeconds(FAILURE_MARKER_TTL_SECONDS));
+        } catch (Exception e) {
+            log.warn("실패 마커 저장 실패 key={}", cacheKey, e);
+        }
+    }
+
+    private boolean hasFailureMarker(String cacheKey) {
+        try {
+            return Boolean.TRUE.equals(
+                    redisTemplate.hasKey(cacheKey + FAILURE_MARKER_SUFFIX));
+        } catch (Exception e) {
+            // Redis 장애 시 마커 확인 불가 — 정상 흐름 진입(보수적 동작)
+            return false;
+        }
+    }
+
+    /** 정상 결과 캐시 저장 성공 시 이전 실패 마커를 즉시 제거 — 복구 후 stale 빈 결과 반환 방지 */
+    private void clearFailureMarker(String cacheKey) {
+        try {
+            redisTemplate.delete(cacheKey + FAILURE_MARKER_SUFFIX);
+        } catch (Exception e) {
+            log.warn("실패 마커 삭제 실패 key={}", cacheKey, e);
         }
     }
 

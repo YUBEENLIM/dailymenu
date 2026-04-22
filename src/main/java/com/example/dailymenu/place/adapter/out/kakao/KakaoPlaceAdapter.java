@@ -3,6 +3,7 @@ package com.example.dailymenu.place.adapter.out.kakao;
 import com.example.dailymenu.place.adapter.out.kakao.dto.KakaoSearchResponse;
 import com.example.dailymenu.place.domain.NearbyRestaurant;
 import com.example.dailymenu.place.domain.port.PlacePort;
+import com.example.dailymenu.shared.util.JitteredTtl;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -66,10 +67,11 @@ public class KakaoPlaceAdapter implements PlacePort {
         // stampede 방지: SET NX로 1건만 카카오 API 호출
         boolean lockAcquired = tryStampedeLock(cacheKey);
         if (!lockAcquired) {
-            // 다른 스레드가 갱신 중 → 캐시 재조회 (갱신 완료 대기 없이 fallback)
-            List<NearbyRestaurant> retry = getFromCache(cacheKey);
+            // 선점자가 API 호출 중 → 캐시 재조회로 갱신 완료 대기. 대기 상한 ≈ read-timeout
+            List<NearbyRestaurant> retry = awaitCacheFill(cacheKey);
             if (retry != null) return retry;
-            // 캐시에 아직 없으면 직접 호출 (락 획득 실패해도 서비스는 중단하지 않음)
+            // 선점자 지연/실패 시 fetch fallback — 서비스 중단 방지. 스탬피드 완전 차단은 아님
+            log.warn("캐시 대기 실패 → fallback 직접 호출 key={} (선점자 지연/실패 추정)", cacheKey);
         }
 
         try {
@@ -79,6 +81,29 @@ public class KakaoPlaceAdapter implements PlacePort {
         } finally {
             if (lockAcquired) releaseStampedeLock(cacheKey);
         }
+    }
+
+    /**
+     * 선점자 갱신 완료 대기 — sleep 간격으로 캐시 재조회.
+     * 첫 시도는 즉시 수행, 마지막 시도 후에는 sleep 없이 반환.
+     * 최대 대기 = (maxRetries - 1) * sleepMs. read-timeout과 비슷하게 설정해야 single-flight 유효.
+     */
+    private List<NearbyRestaurant> awaitCacheFill(String cacheKey) {
+        int maxRetries = properties.cacheWaitMaxRetries();
+        long sleepMs = properties.cacheWaitSleepMs();
+        for (int attempt = 0; attempt < maxRetries; attempt++) {
+            List<NearbyRestaurant> hit = getFromCache(cacheKey);
+            if (hit != null) return hit;
+            if (attempt < maxRetries - 1) {
+                try {
+                    Thread.sleep(sleepMs);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    return null;
+                }
+            }
+        }
+        return null;
     }
 
     private List<NearbyRestaurant> callKakaoApi(double latitude, double longitude) {
@@ -166,8 +191,12 @@ public class KakaoPlaceAdapter implements PlacePort {
         if (properties.cacheTtlSeconds() <= 0) return;
         try {
             String json = OBJECT_MAPPER.writeValueAsString(result);
-            redisTemplate.opsForValue().set(cacheKey, json, Duration.ofSeconds(properties.cacheTtlSeconds()));
-            log.debug("카카오 API 캐시 저장 key={} size={}", cacheKey, result.size());
+            // TTL Jitter: 동일 격자 키가 동시 만료되지 않도록 ±ratio 분산
+            Duration ttl = JitteredTtl.of(
+                    Duration.ofSeconds(properties.cacheTtlSeconds()),
+                    properties.cacheTtlJitterRatio());
+            redisTemplate.opsForValue().set(cacheKey, json, ttl);
+            log.debug("카카오 API 캐시 저장 key={} size={} ttl={}s", cacheKey, result.size(), ttl.toSeconds());
         } catch (Exception e) {
             log.warn("카카오 API 캐시 저장 실패 key={}", cacheKey, e);
         }

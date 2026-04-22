@@ -67,6 +67,10 @@ kakao:
     read-timeout: 1500        # ms
     default-radius: 500       # 미터 (기본 탐색 반경)
     cache-ttl-seconds: 3600   # 카카오 API 응답 캐시 TTL (초). 0이면 비활성화
+    # 캐시 스탬피드 방지 — Jitter + Single-flight 대기 설계
+    cache-ttl-jitter-ratio: 0.1        # TTL ±10% 랜덤 분산으로 동시 만료 완화
+    cache-wait-sleep-ms: 150           # 선점자 갱신 대기 간격(ms)
+    cache-wait-max-retries: 10         # 재조회 시도 횟수. 최대 대기 = (N-1)*sleep ≈ read-timeout
   oauth:
     client-id: ${KAKAO_REST_API_KEY:your-kakao-rest-api-key}
     client-secret: ${KAKAO_CLIENT_SECRET:}  # 카카오 콘솔에서 클라이언트 시크릿 비활성화 시 빈 값

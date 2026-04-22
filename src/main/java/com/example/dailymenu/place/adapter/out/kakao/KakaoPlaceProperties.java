@@ -13,6 +13,9 @@ public record KakaoPlaceProperties(
         int connectionTimeout,
         int readTimeout,
         int defaultRadius,
-        int cacheTtlSeconds  // 캐시 TTL (초). 0이면 캐시 비활성화
+        int cacheTtlSeconds,          // 캐시 TTL (초). 0이면 캐시 비활성화
+        double cacheTtlJitterRatio,   // TTL ±ratio 분산 (0.0~1.0). 0이면 Jitter 미적용
+        long cacheWaitSleepMs,        // 선점자 갱신 대기 간격(ms)
+        int cacheWaitMaxRetries       // 재조회 시도 횟수. 최대 대기 ≈ (N-1)*sleep
 ) {
 }

@@ -19,13 +19,12 @@ import java.util.Optional;
  *
  * 영속성: DB가 Source of Truth — Redis 다운 시에도 사용자가 강제 로그아웃되지 않는다.
  * 성능: Redis 캐시 우선 조회로 DB 부하 최소화.
+ * 보안: 저장소에는 {@link TokenHasher}로 SHA-256 해시만 저장. 원본 토큰은 발급 직후 클라이언트만 보유.
  *
  * 동작:
- *   - save: DB 저장 → Redis 채움(TTL = min(CACHE_TTL, ttlSeconds)). Redis 실패는 warn.
- *   - find: Redis 우선 → 캐시 미스/장애 시 DB → DB hit 시 남은 만료 시간만큼 Redis refill.
- *   - invalidate: Redis 먼저 → DB. Redis 실패 시 예외 전파(로그아웃 우회 차단).
- *
- * @Primary — RefreshTokenPort 주입 시 이 빈이 우선.
+ *   - save: 해시 후 DB 저장 → Redis 채움(TTL = min(CACHE_TTL, ttlSeconds)). Redis 실패는 warn.
+ *   - matches: Redis 우선 → 캐시 미스/장애 시 DB → MessageDigest.isEqual 상수 시간 비교.
+ *   - invalidate: DB 먼저(Source of Truth) → Redis best-effort. Redis 실패는 warn.
  */
 @Component
 @Primary
@@ -38,32 +37,43 @@ public class CachedRefreshTokenAdapter implements RefreshTokenPort {
 
     private final RefreshTokenStoragePort storagePort;
     private final RefreshTokenCachePort cachePort;
+    private final TokenHasher hasher;
 
     @Override
     public void save(Long userId, String refreshToken, long ttlSeconds) {
-        storagePort.save(userId, refreshToken, ttlSeconds);
+        String hashed = hasher.hash(refreshToken);
+        storagePort.save(userId, hashed, ttlSeconds);
         long cacheTtl = Math.min(CACHE_TTL_SECONDS, ttlSeconds);
         try {
-            cachePort.save(userId, refreshToken, cacheTtl);
+            cachePort.save(userId, hashed, cacheTtl);
         } catch (Exception e) {
             log.warn("Refresh Token 캐시 저장 실패 — DB만 저장됨 userId={}", userId, e);
         }
     }
 
     @Override
-    public Optional<String> find(Long userId) {
+    public boolean matches(Long userId, String rawToken) {
+        if (rawToken == null || rawToken.isEmpty()) {
+            return false;
+        }
+
+        Optional<String> cached = Optional.empty();
         try {
-            Optional<String> cached = cachePort.find(userId);
-            if (cached.isPresent()) {
-                return cached;
-            }
+            cached = cachePort.find(userId);
         } catch (Exception e) {
             log.warn("Refresh Token 캐시 조회 실패 — DB로 fallback userId={}", userId, e);
         }
+        if (cached.isPresent()) {
+            return hasher.matches(rawToken, cached.get());
+        }
 
         Optional<StoredToken> fromDb = storagePort.find(userId);
-        fromDb.ifPresent(stored -> refillCache(userId, stored));
-        return fromDb.map(StoredToken::token);
+        if (fromDb.isEmpty()) {
+            return false;
+        }
+        StoredToken stored = fromDb.get();
+        refillCache(userId, stored);
+        return hasher.matches(rawToken, stored.token());
     }
 
     // 원자성 우선: DB(Source of Truth) 먼저 삭제 → Redis는 best-effort.

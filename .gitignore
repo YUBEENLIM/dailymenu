@@ -61,3 +61,9 @@ application-secret.yml
 
 # 개발 일지 (AI 세션 기록, 개인용)
 dev-logs/
+
+# AI 에이전트 로컬 메모리 (머신별 자동 누적 — 팀 공유 부적합)
+.claude/agent-memory/
+
+# 별도 프로젝트 (Flutter 앱은 다른 브랜치에서 관리 — feature/backend 관심사 아님)
+flutter_app/

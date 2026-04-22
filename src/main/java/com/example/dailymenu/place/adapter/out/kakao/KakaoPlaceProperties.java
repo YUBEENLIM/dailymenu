@@ -16,6 +16,8 @@ public record KakaoPlaceProperties(
         int cacheTtlSeconds,          // 캐시 TTL (초). 0이면 캐시 비활성화
         double cacheTtlJitterRatio,   // TTL ±ratio 분산 (0.0~1.0). 0이면 Jitter 미적용
         long cacheWaitSleepMs,        // 선점자 갱신 대기 간격(ms)
-        int cacheWaitMaxRetries       // 재조회 시도 횟수. 최대 대기 ≈ (N-1)*sleep
+        int cacheWaitMaxRetries,      // 재조회 시도 횟수. 최대 대기 ≈ (N-1)*sleep
+        long emptyResultTtlSeconds,   // Negative caching — 빈 결과 TTL (외곽/심야 반복 호출 방지)
+        long failureMarkerTtlSeconds  // Negative caching — API 실패 마커 TTL
 ) {
 }

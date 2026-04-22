@@ -39,8 +39,6 @@ public class KakaoPlaceAdapter implements PlacePort {
     private static final String CACHE_KEY_PREFIX = "place:nearby:";
     private static final String CACHE_LOCK_PREFIX = "place:lock:";
     private static final String FAILURE_MARKER_SUFFIX = ":fail";
-    private static final long EMPTY_RESULT_TTL_SECONDS = 60L;       // 외곽/심야 빈 결과 반복 호출 방지
-    private static final long FAILURE_MARKER_TTL_SECONDS = 30L;     // 선점자 API 실패 후 후속 요청 보호 구간
     private static final TypeReference<List<NearbyRestaurant>> LIST_TYPE = new TypeReference<>() {};
     private static final ObjectMapper OBJECT_MAPPER;
     static {
@@ -218,7 +216,7 @@ public class KakaoPlaceAdapter implements PlacePort {
             String json = OBJECT_MAPPER.writeValueAsString(result);
             // 빈 결과는 짧은 TTL(negative caching) — 반복 외부 호출 방지 + 신규 식당 등록 반영 지연 최소화
             long baseTtlSec = result.isEmpty()
-                    ? Math.min(EMPTY_RESULT_TTL_SECONDS, properties.cacheTtlSeconds())
+                    ? Math.min(properties.emptyResultTtlSeconds(), properties.cacheTtlSeconds())
                     : properties.cacheTtlSeconds();
             // TTL Jitter: 동일 격자 키가 동시 만료되지 않도록 ±ratio 분산
             Duration ttl = JitteredTtl.of(
@@ -236,7 +234,7 @@ public class KakaoPlaceAdapter implements PlacePort {
         try {
             redisTemplate.opsForValue().set(
                     cacheKey + FAILURE_MARKER_SUFFIX, "1",
-                    Duration.ofSeconds(FAILURE_MARKER_TTL_SECONDS));
+                    Duration.ofSeconds(properties.failureMarkerTtlSeconds()));
         } catch (Exception e) {
             log.warn("실패 마커 저장 실패 key={}", cacheKey, e);
         }

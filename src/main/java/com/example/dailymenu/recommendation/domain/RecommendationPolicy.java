@@ -84,7 +84,8 @@ public class RecommendationPolicy {
         // 진입 시점에 한 번만 시간 기준 캡처 — 필터/감점 메서드 간 시각 불일치 방지 + 테스트 결정성
         ZonedDateTime nowZoned = ZonedDateTime.now(ZoneId.of("Asia/Seoul"));
         LocalTime now = nowZoned.toLocalTime();
-        LocalDateTime cutoff = nowZoned.toLocalDateTime().minusHours(REJECT_FILTER_HOURS);
+        // cutoff은 시스템 timezone 기준 — DB read 결과(LocalDateTime)와 일관성 유지 (EC2 UTC 9시간 오차 방지)
+        LocalDateTime cutoff = LocalDateTime.now().minusHours(REJECT_FILTER_HOURS);
         LocalDate today = nowZoned.toLocalDate();
 
         // 1사이클: 정상 필터링

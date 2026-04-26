@@ -625,10 +625,11 @@ Idempotency-Key: {uuid}   # 필수
 
 | 값 | 설명 | 재추천 반영 |
 |---|---|---|
-| TOO_FAR | 너무 멀어요 | 2시간 내 700m+ 식당 -10점 감점 |
-| ATE_RECENTLY | 최근에 먹었어요 | 2시간 내 같은 subCategory 추천 점수 0점 |
-| NOT_THIS_TYPE | 이 종류 말고요 | 2시간 내 같은 subCategory 식당 전체 제외 |
-| OTHER | 기타 (memo 필드에 사유 입력) | 해당 식당만 제외 |
+| TOO_FAR | 너무 멀어요 | 1사이클: 2시간 내 500m+ 식당 전체 제외 / 2사이클 fallback: 500m+ 식당 -10점 감점 |
+| ATE_RECENTLY | 최근에 먹었어요 | 1사이클: 2시간 내 같은 subCategory 식당 전체 제외 / 2사이클 fallback: 같은 subCategory 점수 0점 |
+| NOT_THIS_TYPE | 이 종류 말고요 | 1사이클: 2시간 내 같은 subCategory 식당 전체 제외 / 2사이클 fallback: 점수 감점 없음 |
+| OTHER | 기타 (memo 필드에 사유 입력) | 해당 식당만 제외 (filterByRecentRecommendation) |
+| (공통) | REJECTED 식당 자체 | 1·2사이클 모두 차단 — 거절 식당 재추천 방지 |
 
 ### FallbackLevel
 

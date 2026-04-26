@@ -3,6 +3,7 @@ package com.example.dailymenu.recommendation.domain;
 import com.example.dailymenu.catalog.domain.Restaurant;
 import com.example.dailymenu.mealhistory.domain.MealHistory;
 import com.example.dailymenu.catalog.domain.MenuCategory;
+import com.example.dailymenu.recommendation.domain.vo.RecommendationStatus;
 import com.example.dailymenu.recommendation.domain.vo.RejectReason;
 import com.example.dailymenu.user.domain.UserProfile;
 
@@ -50,7 +51,8 @@ public class RecommendationPolicy {
     private static final int LUNCH_PENALTY = -15;
     // 거절 이력 참조 시간 (2시간 이내만 필터링 적용, 초과 시 초기화)
     private static final int REJECT_FILTER_HOURS = 2;
-    // TOO_FAR 감점
+    // TOO_FAR 임계치 — 거리 점수 cliff(500m)와 일치. 1사이클 강한 필터 + 2사이클 점수 감점 fallback
+    private static final int TOO_FAR_THRESHOLD_METERS = 500;
     private static final int TOO_FAR_PENALTY = -10;
 
     private final Random random;
@@ -94,7 +96,7 @@ public class RecommendationPolicy {
                     filtered, userProfile, mealHistories, recommendationHistories, now, today, cutoff, subCategoryByRestaurantId));
         }
 
-        // 2사이클: 추천 이력 필터 해제 + 2번 이상 추천된 식당 제외 + 직전 식당 제외
+        // 2사이클: 거절 사유 강한 필터 해제(점수 감점 fallback) + REJECTED만 차단 + over-recommended 제외
         List<MenuCandidate> relaxed = applyFilters(
                 candidates, userProfile, mealHistories, recommendationHistories,
                 now, today, cutoff, subCategoryByRestaurantId, true);
@@ -108,7 +110,8 @@ public class RecommendationPolicy {
     }
 
     /**
-     * @param relaxed true면 2사이클 — 당일 추천 이력 제외를 해제 (NOT_THIS_TYPE만 유지)
+     * @param relaxed true면 2사이클 — 거절 사유 강한 필터 해제(점수 감점으로 완화),
+     *                REJECTED 식당만 차단해서 거절 식당 재추천 방지.
      */
     private List<MenuCandidate> applyFilters(
             List<MenuCandidate> candidates,
@@ -124,10 +127,12 @@ public class RecommendationPolicy {
         List<MenuCandidate> result = filterByDistance(candidates);
         result = filterByTimeSlot(result, now);
         result = filterByMealExclusion(result, mealHistories, today);
+        // 1사이클: 모든 최근 추천 식당 제외. 2사이클: REJECTED만 제외 — 거절 식당 재추천 차단.
+        result = filterByRecentRecommendation(result, recommendationHistories, cutoff, /* rejectedOnly= */ relaxed);
+        // 거절 사유 강한 필터는 1사이클만. 2사이클은 점수 감점으로 완화 (옵션 B fallback).
         if (!relaxed) {
-            result = filterByRecentRecommendation(result, recommendationHistories, cutoff);
+            result = filterByRejectReason(result, recommendationHistories, subCategoryByRestaurantId, cutoff);
         }
-        result = filterByRejectReason(result, recommendationHistories, subCategoryByRestaurantId, cutoff);
         result = filterByRestrictions(result, userProfile);
         result = filterBySoloPreference(result, userProfile);
         result = filterByPriceRange(result, userProfile);
@@ -189,15 +194,20 @@ public class RecommendationPolicy {
                 .toList();
     }
 
-    /** 3. 추천 이력 — 최근 2시간 내 추천된 식당 제외 (2시간 초과 시 자동 초기화) */
+    /**
+     * 3. 추천 이력 — cutoff 이후 추천된 식당 제외 (2시간 초과 시 자동 초기화).
+     * rejectedOnly=true면 REJECTED 상태인 추천만 필터링 — 2사이클에서도 거절 식당은 차단.
+     */
     List<MenuCandidate> filterByRecentRecommendation(
             List<MenuCandidate> candidates,
             List<Recommendation> histories,
-            LocalDateTime cutoff
+            LocalDateTime cutoff,
+            boolean rejectedOnly
     ) {
         Set<Long> recentRestaurantIds = histories.stream()
                 .filter(r -> r.getRestaurantId() != null)
                 .filter(r -> r.getCreatedAt().isAfter(cutoff))
+                .filter(r -> !rejectedOnly || r.getStatus() == RecommendationStatus.REJECTED)
                 .map(Recommendation::getRestaurantId)
                 .collect(Collectors.toSet());
         return candidates.stream()
@@ -240,10 +250,10 @@ public class RecommendationPolicy {
     }
 
     /**
-     * 3.5. 거절 사유 기반 필터.
-     * NOT_THIS_TYPE: 당일 거절한 식당과 같은 subCategory 전체 제외.
-     * ATE_RECENTLY: 점수 감점으로 처리 (filterByRejectReason에서는 제외하지 않음).
-     * TOO_FAR, OTHER: 해당 식당만 제외 (filterBySameDayRecommendation에서 이미 처리됨).
+     * 3.5. 거절 사유 기반 강한 필터 (1사이클 전용 — 옵션 B).
+     * NOT_THIS_TYPE + ATE_RECENTLY: 같은 subCategory 식당 전체 제외 (subCategory=null인 거절 식당은 무효화 — 식당 자체는 filterByRecentRecommendation에서 차단).
+     * TOO_FAR: 임계치(500m) 이상 식당 전체 제외.
+     * 1사이클 후보 0건이면 2사이클로 진입하면서 이 필터 해제, 점수 감점으로 완화.
      */
     List<MenuCandidate> filterByRejectReason(
             List<MenuCandidate> candidates,
@@ -251,23 +261,53 @@ public class RecommendationPolicy {
             Map<Long, String> subCategoryByRestaurantId,
             LocalDateTime cutoff
     ) {
-        // NOT_THIS_TYPE: 2시간 내 거절한 식당과 같은 subCategory 전체 제외
-        Set<String> excludedSubCategories = histories.stream()
-                .filter(r -> r.getRejectReason() == RejectReason.NOT_THIS_TYPE)
-                .filter(r -> r.getCreatedAt().isAfter(cutoff))
-                .filter(r -> r.getRestaurantId() != null)
-                .map(r -> subCategoryByRestaurantId.get(r.getRestaurantId()))
-                .filter(sub -> sub != null)
-                .collect(Collectors.toSet());
+        Set<String> excludedSubCategories = excludedSubCategoriesByReject(
+                histories, subCategoryByRestaurantId, cutoff);
+        boolean tooFarRejected = hasTooFarReject(histories, cutoff);
 
-        if (excludedSubCategories.isEmpty()) return candidates;
+        if (excludedSubCategories.isEmpty() && !tooFarRejected) return candidates;
 
         return candidates.stream()
                 .filter(c -> {
                     String sub = c.restaurant().getSubCategory();
                     return sub == null || !excludedSubCategories.contains(sub);
                 })
+                .filter(c -> !tooFarRejected || c.distanceMeters() < TOO_FAR_THRESHOLD_METERS)
                 .toList();
+    }
+
+    private Set<String> excludedSubCategoriesByReject(
+            List<Recommendation> histories,
+            Map<Long, String> subCategoryByRestaurantId,
+            LocalDateTime cutoff
+    ) {
+        return histories.stream()
+                .filter(r -> r.getRejectReason() == RejectReason.NOT_THIS_TYPE
+                          || r.getRejectReason() == RejectReason.ATE_RECENTLY)
+                .filter(r -> r.getCreatedAt().isAfter(cutoff))
+                .filter(r -> r.getRestaurantId() != null)
+                .map(r -> subCategoryByRestaurantId.get(r.getRestaurantId()))
+                .filter(sub -> sub != null)
+                .collect(Collectors.toSet());
+    }
+
+    private boolean hasTooFarReject(List<Recommendation> histories, LocalDateTime cutoff) {
+        return histories.stream()
+                .filter(r -> r.getRejectReason() == RejectReason.TOO_FAR)
+                .anyMatch(r -> r.getCreatedAt().isAfter(cutoff));
+    }
+
+    private boolean hasAteRecentlySameSubCategory(
+            String subCategory,
+            List<Recommendation> histories,
+            Map<Long, String> subCategoryByRestaurantId,
+            LocalDateTime cutoff
+    ) {
+        return histories.stream()
+                .filter(r -> r.getRejectReason() == RejectReason.ATE_RECENTLY)
+                .filter(r -> r.getCreatedAt().isAfter(cutoff))
+                .filter(r -> r.getRestaurantId() != null)
+                .anyMatch(r -> subCategory.equals(subCategoryByRestaurantId.get(r.getRestaurantId())));
     }
 
     /** 4. 사용자 제한 — 메뉴/식당/카테고리 Restriction 완전 제외 */
@@ -468,13 +508,10 @@ public class RecommendationPolicy {
                     .findFirst()
                     .orElse(10);
 
-            // ATE_RECENTLY 거절 시 같은 subCategory 2시간 내 강한 감점 (0점)
-            boolean ateRecentlySameSubCategory = histories.stream()
-                    .filter(r -> r.getRejectReason() == RejectReason.ATE_RECENTLY)
-                    .filter(r -> r.getCreatedAt().isAfter(cutoff))
-                    .filter(r -> r.getRestaurantId() != null)
-                    .anyMatch(r -> subCategory.equals(subCategoryByRestaurantId.get(r.getRestaurantId())));
-            if (ateRecentlySameSubCategory) subCategoryScore = 0;
+            // ATE_RECENTLY 거절 시 같은 subCategory 강한 감점 (2사이클 fallback — 1사이클은 filterByRejectReason이 이미 제외)
+            if (hasAteRecentlySameSubCategory(subCategory, histories, subCategoryByRestaurantId, cutoff)) {
+                subCategoryScore = 0;
+            }
         }
 
         return Math.min(restaurantScore, subCategoryScore);
@@ -493,13 +530,8 @@ public class RecommendationPolicy {
      * 거절한 식당 거리 이상인 후보를 감점(-10).
      */
     int tooFarPenalty(MenuCandidate candidate, List<Recommendation> histories, LocalDateTime cutoff) {
-        // 2시간 내 TOO_FAR 거절된 식당들의 거리를 확인할 수 없으므로 (Recommendation에 거리 미저장)
-        // TOO_FAR 거절이 있으면 먼 식당(700m+)을 감점하는 방식으로 대체
-        boolean hasTooFarReject = histories.stream()
-                .filter(r -> r.getRejectReason() == RejectReason.TOO_FAR)
-                .anyMatch(r -> r.getCreatedAt().isAfter(cutoff));
-        if (!hasTooFarReject) return 0;
-        return candidate.distanceMeters() >= 700 ? TOO_FAR_PENALTY : 0;
+        if (!hasTooFarReject(histories, cutoff)) return 0;
+        return candidate.distanceMeters() >= TOO_FAR_THRESHOLD_METERS ? TOO_FAR_PENALTY : 0;
     }
 
     private Optional<ScoredCandidate> selectBest(List<ScoredCandidate> scored) {

@@ -262,6 +262,8 @@ public class KakaoPlaceAdapter implements PlacePort {
     private boolean isExcludedCategory(String categoryName) {
         if (categoryName == null) return false;
         String lower = categoryName.toLowerCase();
+        // 카카오가 명시적으로 샐러드를 태깅한 경우("카페 > 샌드위치,샐러드" 등)는 제외 예외 — SALAD로 분류됨
+        if (lower.contains("샐러드")) return false;
         return EXCLUDED_KEYWORDS.stream().anyMatch(keyword -> lower.contains(keyword.toLowerCase()));
     }
 

@@ -49,6 +49,7 @@ services:
     environment:
       SPRING_PROFILES_ACTIVE: docker,kakao,loadtest
       KAKAO_REST_API_KEY: ${KAKAO_REST_API_KEY}
+      KAKAO_OAUTH_REDIRECT_URI: http://52.79.50.218:8080/auth/kakao/callback
     depends_on:
       db:
         condition: service_healthy

@@ -103,6 +103,18 @@ CREATE TABLE IF NOT EXISTS recommendations (
         CHECK (status IN ('RECOMMENDED', 'ACCEPTED', 'REJECTED'))
 );
 
+CREATE TABLE IF NOT EXISTS refresh_tokens (
+    id          BIGINT          NOT NULL AUTO_INCREMENT,
+    user_id     BIGINT          NOT NULL UNIQUE,
+    token       VARCHAR(512)    NOT NULL,
+    expires_at  DATETIME        NOT NULL,
+    created_at  DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at  DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    FOREIGN KEY (user_id) REFERENCES users(id),
+    INDEX idx_expires_at (expires_at)
+);
+
 CREATE TABLE IF NOT EXISTS meal_histories (
     id                  BIGINT          NOT NULL AUTO_INCREMENT,
     user_id             BIGINT          NOT NULL,

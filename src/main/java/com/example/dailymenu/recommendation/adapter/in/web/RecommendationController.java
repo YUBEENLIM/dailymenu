@@ -48,26 +48,30 @@ public class RecommendationController {
     /**
      * PATCH /recommendations/{id}/accept — 추천 채택.
      * 식사 완료 확정은 POST /meal-histories 에서 별도 처리.
+     * userId는 본인 추천만 변경 가능하도록 UseCase에서 소유자 검증한다.
      */
     @PatchMapping("/{id}/accept")
     public AcceptResponse accept(
+            @RequestAttribute("userId") Long userId,
             @PathVariable Long id
     ) {
-        StatusUpdateResult result = facade.accept(id);
+        StatusUpdateResult result = facade.accept(userId, id);
         return new AcceptResponse(
                 result.recommendationId(), result.status().name());
     }
 
     /**
      * PATCH /recommendations/{id}/reject — 추천 거절.
-     * reason: TOO_FAR / NOT_HUNGRY / PREFER_SOLO / OTHER
+     * reason: TOO_FAR / ATE_RECENTLY / NOT_THIS_TYPE / OTHER
+     * userId는 본인 추천만 변경 가능하도록 UseCase에서 소유자 검증한다.
      */
     @PatchMapping("/{id}/reject")
     public RejectResponse reject(
+            @RequestAttribute("userId") Long userId,
             @PathVariable Long id,
             @RequestBody @Valid RejectHttpRequest request
     ) {
-        StatusUpdateResult result = facade.reject(id, request.reason());
+        StatusUpdateResult result = facade.reject(userId, id, request.reason(), request.memo());
         return new RejectResponse(
                 result.recommendationId(), result.status().name());
     }

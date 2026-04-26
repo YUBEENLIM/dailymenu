@@ -91,6 +91,7 @@ CREATE TABLE IF NOT EXISTS recommendations (
     idempotency_key      VARCHAR(255)    NOT NULL,
     status               VARCHAR(50)     NOT NULL,
     reject_reason        VARCHAR(50),
+    reject_detail        VARCHAR(500),
     recommendation_score DECIMAL(5,2),
     fallback_level       VARCHAR(20),
     created_at           DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -100,6 +101,18 @@ CREATE TABLE IF NOT EXISTS recommendations (
     INDEX idx_idempotency_key (idempotency_key),
     CONSTRAINT chk_recommendation_status
         CHECK (status IN ('RECOMMENDED', 'ACCEPTED', 'REJECTED'))
+);
+
+CREATE TABLE IF NOT EXISTS refresh_tokens (
+    id          BIGINT          NOT NULL AUTO_INCREMENT,
+    user_id     BIGINT          NOT NULL UNIQUE,
+    token       VARCHAR(512)    NOT NULL,
+    expires_at  DATETIME        NOT NULL,
+    created_at  DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at  DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    FOREIGN KEY (user_id) REFERENCES users(id),
+    INDEX idx_expires_at (expires_at)
 );
 
 CREATE TABLE IF NOT EXISTS meal_histories (

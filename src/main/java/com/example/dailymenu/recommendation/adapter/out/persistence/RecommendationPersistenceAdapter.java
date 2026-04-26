@@ -41,7 +41,7 @@ public class RecommendationPersistenceAdapter
         RecommendationJpaEntity entity = recommendationJpaRepository
                 .findById(recommendation.getId())
                 .orElseThrow(() -> new BusinessException(ErrorCode.RECOMMENDATION_NOT_FOUND));
-        entity.updateStatus(recommendation.getStatus(), recommendation.getRejectReason());
+        entity.updateStatus(recommendation.getStatus(), recommendation.getRejectReason(), recommendation.getRejectDetail());
         return toDomain(entity);
     }
 
@@ -73,6 +73,7 @@ public class RecommendationPersistenceAdapter
                 .idempotencyKey(domain.getIdempotencyKey())
                 .status(domain.getStatus())
                 .rejectReason(domain.getRejectReason())
+                .rejectDetail(domain.getRejectDetail())
                 .recommendationScore(domain.getRecommendationScore())
                 .fallbackLevel(domain.getFallbackLevel())
                 .build();
@@ -89,6 +90,7 @@ public class RecommendationPersistenceAdapter
                 entity.getIdempotencyKey(),
                 entity.getStatus(),
                 entity.getRejectReason(),
+                entity.getRejectDetail(),
                 entity.getRecommendationScore(),
                 entity.getFallbackLevel(),
                 entity.getCreatedAt(),

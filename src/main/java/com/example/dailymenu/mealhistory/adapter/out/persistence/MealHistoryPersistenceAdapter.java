@@ -13,6 +13,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 
 /**
  * 식사 이력 Persistence Adapter.
@@ -57,6 +58,18 @@ public class MealHistoryPersistenceAdapter implements MealHistoryRepositoryPort 
                 result.getTotalElements(),
                 result.getTotalPages()
         );
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Optional<MealHistory> findById(Long id) {
+        return mealHistoryJpaRepository.findById(id).map(this::toDomain);
+    }
+
+    @Override
+    @Transactional
+    public void delete(MealHistory mealHistory) {
+        mealHistoryJpaRepository.deleteById(mealHistory.getId());
     }
 
     private MealHistoryJpaEntity toEntity(MealHistory domain) {

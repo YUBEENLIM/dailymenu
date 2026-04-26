@@ -5,6 +5,7 @@ import com.example.dailymenu.mealhistory.domain.MealHistory;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 
 /**
  * 식사 이력 Port.
@@ -19,4 +20,11 @@ public interface MealHistoryRepositoryPort {
 
     PageResult<MealHistory> findByUserIdAndEatenAtBetween(
             Long userId, LocalDateTime from, LocalDateTime to, int page, int size);
+
+    Optional<MealHistory> findById(Long id);
+
+    /**
+     * 이미 조회한 도메인 객체를 그대로 받아 삭제 — Spring Data JPA deleteById의 SELECT 재실행을 회피.
+     */
+    void delete(MealHistory mealHistory);
 }

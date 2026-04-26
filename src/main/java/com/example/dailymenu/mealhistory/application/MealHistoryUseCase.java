@@ -5,10 +5,10 @@ import com.example.dailymenu.shared.domain.PageResult;
 import com.example.dailymenu.shared.domain.exception.BusinessException;
 import com.example.dailymenu.shared.domain.exception.ErrorCode;
 import com.example.dailymenu.mealhistory.domain.MealHistory;
+import com.example.dailymenu.mealhistory.domain.RecommendationSnapshot;
 import com.example.dailymenu.mealhistory.domain.port.MealHistoryRepositoryPort;
+import com.example.dailymenu.mealhistory.domain.port.RecommendationLookupPort;
 import com.example.dailymenu.catalog.domain.Menu;
-import com.example.dailymenu.recommendation.domain.Recommendation;
-import com.example.dailymenu.recommendation.domain.port.RecommendationRepositoryPort;
 import com.example.dailymenu.catalog.domain.Restaurant;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -32,7 +32,7 @@ import java.time.LocalTime;
 public class MealHistoryUseCase {
 
     private final MealHistoryRepositoryPort mealHistoryRepositoryPort;
-    private final RecommendationRepositoryPort recommendationRepositoryPort;
+    private final RecommendationLookupPort recommendationLookupPort;
     private final MenuCatalogRepositoryPort menuCatalogRepositoryPort;
 
     public record MealHistoryCommand(
@@ -80,6 +80,26 @@ public class MealHistoryUseCase {
         return saved.getId();
     }
 
+    @Transactional
+    public Long recordMealManual(Long userId, String menuName, String restaurantName, LocalDateTime eatenAt) {
+        MealHistory mealHistory = MealHistory.create(
+                userId, null, null, menuName, null, restaurantName, eatenAt);
+        MealHistory saved = mealHistoryRepositoryPort.save(mealHistory);
+        log.info("식사 기록 수동 저장 userId={} mealHistoryId={}", userId, saved.getId());
+        return saved.getId();
+    }
+
+    @Transactional
+    public void deleteMeal(Long userId, Long mealHistoryId) {
+        MealHistory mealHistory = mealHistoryRepositoryPort.findById(mealHistoryId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.MEAL_HISTORY_NOT_FOUND));
+        if (!mealHistory.getUserId().equals(userId)) {
+            throw new BusinessException(ErrorCode.FORBIDDEN);
+        }
+        mealHistoryRepositoryPort.delete(mealHistory);
+        log.info("식사 기록 삭제 userId={} mealHistoryId={}", userId, mealHistoryId);
+    }
+
     @Transactional(readOnly = true)
     public PagedResult<MealHistoryItemResult> getHistories(
             Long userId, LocalDate from, LocalDate to, int page, int size) {
@@ -104,17 +124,17 @@ public class MealHistoryUseCase {
     }
 
     private MealHistory createFromRecommendation(MealHistoryCommand command) {
-        Recommendation rec = recommendationRepositoryPort
+        RecommendationSnapshot snap = recommendationLookupPort
                 .findById(command.recommendationId())
                 .orElseThrow(() -> new BusinessException(ErrorCode.RECOMMENDATION_NOT_FOUND));
 
         return MealHistory.create(
                 command.userId(),
-                rec.getId(),
-                rec.getMenuId(),
-                rec.getMenuName(),
-                rec.getRestaurantId(),
-                rec.getRestaurantName(),
+                snap.recommendationId(),
+                snap.menuId(),
+                snap.menuName(),
+                snap.restaurantId(),
+                snap.restaurantName(),
                 command.eatenAt()
         );
     }
@@ -123,12 +143,16 @@ public class MealHistoryUseCase {
         command.validateDirectInput();
 
         Menu menu = menuCatalogRepositoryPort.findMenuById(command.menuId())
-                .orElseThrow(() -> new BusinessException(ErrorCode.MEAL_HISTORY_NOT_FOUND,
-                        "메뉴를 찾을 수 없습니다. menuId=" + command.menuId()));
+                .orElseThrow(() -> {
+                    log.warn("식사 기록 직접 입력 — 메뉴 미조회 menuId={}", command.menuId());
+                    return new BusinessException(ErrorCode.MEAL_HISTORY_NOT_FOUND);
+                });
 
         Restaurant restaurant = menuCatalogRepositoryPort.findRestaurantById(command.restaurantId())
-                .orElseThrow(() -> new BusinessException(ErrorCode.MEAL_HISTORY_NOT_FOUND,
-                        "식당을 찾을 수 없습니다. restaurantId=" + command.restaurantId()));
+                .orElseThrow(() -> {
+                    log.warn("식사 기록 직접 입력 — 식당 미조회 restaurantId={}", command.restaurantId());
+                    return new BusinessException(ErrorCode.MEAL_HISTORY_NOT_FOUND);
+                });
 
         return MealHistory.create(
                 command.userId(),

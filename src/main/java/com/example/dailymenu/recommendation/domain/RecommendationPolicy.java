@@ -3,12 +3,18 @@ package com.example.dailymenu.recommendation.domain;
 import com.example.dailymenu.catalog.domain.Restaurant;
 import com.example.dailymenu.mealhistory.domain.MealHistory;
 import com.example.dailymenu.catalog.domain.MenuCategory;
+import com.example.dailymenu.recommendation.domain.vo.RejectReason;
 import com.example.dailymenu.user.domain.UserProfile;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.ZoneId;
+import java.time.ZonedDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.Comparator;
 import java.util.List;
@@ -28,11 +34,12 @@ import java.util.stream.Collectors;
  *   4. 사용자 제한 (메뉴/식당/카테고리 Restriction)
  *   5. 사용자 프로필 (혼밥, 가격)
  *
- * 추천 점수: 거리(30) + 선호카테고리(30) + 식사이력(30) + 추천이력(10) = 0~100
+ * 추천 점수: 거리(40) + 카테고리(20) + 식사이력(30) + 추천이력(10) = 0~100
  * 메뉴 없는 식당도 동일한 100점 체계 — restaurant.id/subCategory 기반으로 점수 계산.
  */
 public class RecommendationPolicy {
 
+    private static final Logger log = LoggerFactory.getLogger(RecommendationPolicy.class);
     private static final int MAX_DISTANCE_METERS = 1000;
     private static final double EXPLORATION_RATIO = 0.1;
 
@@ -41,6 +48,10 @@ public class RecommendationPolicy {
     // 점심에 감점 대상 sub_category (제외는 아니고 점수 감점)
     private static final Set<String> LUNCH_PENALIZED_SUB_CATEGORIES = Set.of("고기");
     private static final int LUNCH_PENALTY = -15;
+    // 거절 이력 참조 시간 (2시간 이내만 필터링 적용, 초과 시 초기화)
+    private static final int REJECT_FILTER_HOURS = 2;
+    // TOO_FAR 감점
+    private static final int TOO_FAR_PENALTY = -10;
 
     private final Random random;
 
@@ -54,7 +65,12 @@ public class RecommendationPolicy {
     }
 
     /**
-     * @param subCategoryByRestaurantId 식당ID → subCategory 매핑. 이력의 subCategory 다양성 감점에 사용.
+     * 추천 사이클:
+     * 1사이클 — 정상 필터링으로 점수순 추천.
+     * 2사이클 — 1사이클 소진 시, 완전 제외(NOT_THIS_TYPE)만 유지하고 나머지 거절 식당 재추천.
+     * 거절 이력은 2시간 이내만 참조. 2시간 초과 시 자동 초기화.
+     *
+     * @param subCategoryByRestaurantId 식당ID → subCategory 매핑.
      */
     public Optional<ScoredCandidate> recommend(
             List<MenuCandidate> candidates,
@@ -63,28 +79,55 @@ public class RecommendationPolicy {
             List<Recommendation> recommendationHistories,
             Map<Long, String> subCategoryByRestaurantId
     ) {
-        LocalTime now = LocalTime.now(ZoneId.of("Asia/Seoul"));
+        // 진입 시점에 한 번만 시간 기준 캡처 — 필터/감점 메서드 간 시각 불일치 방지 + 테스트 결정성
+        ZonedDateTime nowZoned = ZonedDateTime.now(ZoneId.of("Asia/Seoul"));
+        LocalTime now = nowZoned.toLocalTime();
+        LocalDateTime cutoff = nowZoned.toLocalDateTime().minusHours(REJECT_FILTER_HOURS);
+        LocalDate today = nowZoned.toLocalDate();
+
+        // 1사이클: 정상 필터링
         List<MenuCandidate> filtered = applyFilters(
-                candidates, userProfile, mealHistories, recommendationHistories, now);
-        if (filtered.isEmpty()) {
-            return Optional.empty();
+                candidates, userProfile, mealHistories, recommendationHistories,
+                now, today, cutoff, subCategoryByRestaurantId, false);
+        if (!filtered.isEmpty()) {
+            return selectBest(scoreAndRank(
+                    filtered, userProfile, mealHistories, recommendationHistories, now, today, cutoff, subCategoryByRestaurantId));
         }
-        List<ScoredCandidate> scored = scoreAndRank(
-                filtered, userProfile, mealHistories, recommendationHistories, now, subCategoryByRestaurantId);
-        return selectBest(scored);
+
+        // 2사이클: 추천 이력 필터 해제 + 2번 이상 추천된 식당 제외 + 직전 식당 제외
+        List<MenuCandidate> relaxed = applyFilters(
+                candidates, userProfile, mealHistories, recommendationHistories,
+                now, today, cutoff, subCategoryByRestaurantId, true);
+        relaxed = excludeOverRecommended(relaxed, recommendationHistories, cutoff);
+        if (!relaxed.isEmpty()) {
+            return selectBest(scoreAndRank(
+                    relaxed, userProfile, mealHistories, recommendationHistories, now, today, cutoff, subCategoryByRestaurantId));
+        }
+
+        return Optional.empty();
     }
 
+    /**
+     * @param relaxed true면 2사이클 — 당일 추천 이력 제외를 해제 (NOT_THIS_TYPE만 유지)
+     */
     private List<MenuCandidate> applyFilters(
             List<MenuCandidate> candidates,
             UserProfile userProfile,
             List<MealHistory> mealHistories,
             List<Recommendation> recommendationHistories,
-            LocalTime now
+            LocalTime now,
+            LocalDate today,
+            LocalDateTime cutoff,
+            Map<Long, String> subCategoryByRestaurantId,
+            boolean relaxed
     ) {
         List<MenuCandidate> result = filterByDistance(candidates);
         result = filterByTimeSlot(result, now);
-        result = filterByMealExclusion(result, mealHistories);
-        result = filterBySameDayRecommendation(result, recommendationHistories);
+        result = filterByMealExclusion(result, mealHistories, today);
+        if (!relaxed) {
+            result = filterByRecentRecommendation(result, recommendationHistories, cutoff);
+        }
+        result = filterByRejectReason(result, recommendationHistories, subCategoryByRestaurantId, cutoff);
         result = filterByRestrictions(result, userProfile);
         result = filterBySoloPreference(result, userProfile);
         result = filterByPriceRange(result, userProfile);
@@ -133,10 +176,11 @@ public class RecommendationPolicy {
      */
     List<MenuCandidate> filterByMealExclusion(
             List<MenuCandidate> candidates,
-            List<MealHistory> mealHistories
+            List<MealHistory> mealHistories,
+            LocalDate today
     ) {
-        Set<Long> excludedMenuIds = resolveExcludedMenuIds(mealHistories);
-        Set<Long> excludedRestaurantIds = resolveExcludedRestaurantIds(mealHistories);
+        Set<Long> excludedMenuIds = resolveExcludedMenuIds(mealHistories, today);
+        Set<Long> excludedRestaurantIds = resolveExcludedRestaurantIds(mealHistories, today);
         return candidates.stream()
                 .filter(c -> {
                     if (c.hasMenu()) return !excludedMenuIds.contains(c.menu().getId());
@@ -145,26 +189,83 @@ public class RecommendationPolicy {
                 .toList();
     }
 
-    /** 3. 추천 이력 — 당일 추천된 메뉴/식당 제외 */
-    List<MenuCandidate> filterBySameDayRecommendation(
+    /** 3. 추천 이력 — 최근 2시간 내 추천된 식당 제외 (2시간 초과 시 자동 초기화) */
+    List<MenuCandidate> filterByRecentRecommendation(
             List<MenuCandidate> candidates,
-            List<Recommendation> histories
+            List<Recommendation> histories,
+            LocalDateTime cutoff
     ) {
-        LocalDate today = LocalDate.now(ZoneId.of("Asia/Seoul"));
-        Set<Long> sameDayMenuIds = histories.stream()
-                .filter(r -> r.getMenuId() != null)
-                .filter(r -> r.getCreatedAt().toLocalDate().isEqual(today))
-                .map(Recommendation::getMenuId)
-                .collect(Collectors.toSet());
-        Set<Long> sameDayRestaurantIds = histories.stream()
+        Set<Long> recentRestaurantIds = histories.stream()
                 .filter(r -> r.getRestaurantId() != null)
-                .filter(r -> r.getCreatedAt().toLocalDate().isEqual(today))
+                .filter(r -> r.getCreatedAt().isAfter(cutoff))
                 .map(Recommendation::getRestaurantId)
                 .collect(Collectors.toSet());
         return candidates.stream()
+                .filter(c -> !recentRestaurantIds.contains(c.restaurant().getId()))
+                .toList();
+    }
+
+    /**
+     * 2사이클 전용 — 2시간 내 2번 이상 추천된 식당 제외 + 직전 추천 식당 제외.
+     * 같은 식당이 무한 반복되는 것을 방지.
+     */
+    List<MenuCandidate> excludeOverRecommended(
+            List<MenuCandidate> candidates,
+            List<Recommendation> histories,
+            LocalDateTime cutoff
+    ) {
+        List<Recommendation> recent = histories.stream()
+                .filter(r -> r.getRestaurantId() != null)
+                .filter(r -> r.getCreatedAt().isAfter(cutoff))
+                .toList();
+
+        // 2번 이상 추천된 식당 ID
+        Set<Long> overRecommended = recent.stream()
+                .collect(Collectors.groupingBy(Recommendation::getRestaurantId, Collectors.counting()))
+                .entrySet().stream()
+                .filter(e -> e.getValue() >= 2)
+                .map(Map.Entry::getKey)
+                .collect(Collectors.toSet());
+
+        // 직전 추천 식당 ID (연속 같은 식당 방지)
+        Long lastRestaurantId = recent.stream()
+                .max(Comparator.comparing(Recommendation::getCreatedAt))
+                .map(Recommendation::getRestaurantId)
+                .orElse(null);
+
+        return candidates.stream()
+                .filter(c -> !overRecommended.contains(c.restaurant().getId()))
+                .filter(c -> !c.restaurant().getId().equals(lastRestaurantId))
+                .toList();
+    }
+
+    /**
+     * 3.5. 거절 사유 기반 필터.
+     * NOT_THIS_TYPE: 당일 거절한 식당과 같은 subCategory 전체 제외.
+     * ATE_RECENTLY: 점수 감점으로 처리 (filterByRejectReason에서는 제외하지 않음).
+     * TOO_FAR, OTHER: 해당 식당만 제외 (filterBySameDayRecommendation에서 이미 처리됨).
+     */
+    List<MenuCandidate> filterByRejectReason(
+            List<MenuCandidate> candidates,
+            List<Recommendation> histories,
+            Map<Long, String> subCategoryByRestaurantId,
+            LocalDateTime cutoff
+    ) {
+        // NOT_THIS_TYPE: 2시간 내 거절한 식당과 같은 subCategory 전체 제외
+        Set<String> excludedSubCategories = histories.stream()
+                .filter(r -> r.getRejectReason() == RejectReason.NOT_THIS_TYPE)
+                .filter(r -> r.getCreatedAt().isAfter(cutoff))
+                .filter(r -> r.getRestaurantId() != null)
+                .map(r -> subCategoryByRestaurantId.get(r.getRestaurantId()))
+                .filter(sub -> sub != null)
+                .collect(Collectors.toSet());
+
+        if (excludedSubCategories.isEmpty()) return candidates;
+
+        return candidates.stream()
                 .filter(c -> {
-                    if (c.hasMenu()) return !sameDayMenuIds.contains(c.menu().getId());
-                    return !sameDayRestaurantIds.contains(c.restaurant().getId());
+                    String sub = c.restaurant().getSubCategory();
+                    return sub == null || !excludedSubCategories.contains(sub);
                 })
                 .toList();
     }
@@ -213,15 +314,32 @@ public class RecommendationPolicy {
             List<MealHistory> mealHistories,
             List<Recommendation> recommendationHistories,
             LocalTime now,
+            LocalDate today,
+            LocalDateTime cutoff,
             Map<Long, String> subCategoryByRestaurantId
     ) {
-        return candidates.stream()
+        List<ScoredCandidate> scored = candidates.stream()
                 .map(c -> new ScoredCandidate(c,
-                        calculateScore(c, userProfile, mealHistories, recommendationHistories, now, subCategoryByRestaurantId)))
+                        calculateScore(c, userProfile, mealHistories, recommendationHistories, now, today, cutoff, subCategoryByRestaurantId)))
                 .sorted(Comparator.<ScoredCandidate, BigDecimal>comparing(ScoredCandidate::score)
                         .reversed()
                         .thenComparingDouble(s -> s.candidate().distanceMeters()))
                 .toList();
+
+        // 후보 전체 점수 로그는 운영 부하 회피를 위해 DEBUG 레벨로 — 피크 트래픽에서 INFO로 출력하면 로그 I/O 병목 발생.
+        if (log.isDebugEnabled()) {
+            log.debug("[추천점수] 후보 {}건", scored.size());
+            for (ScoredCandidate s : scored) {
+                MenuCandidate c = s.candidate();
+                String name = c.restaurant().getName();
+                String sub = c.restaurant().getSubCategory();
+                int dist = (int) c.distanceMeters();
+                log.debug("[추천점수] {}점 | {} | sub={} | {}m",
+                        s.score(), name, sub != null ? sub : "-", dist);
+            }
+        }
+
+        return scored;
     }
 
     BigDecimal calculateScore(
@@ -230,6 +348,8 @@ public class RecommendationPolicy {
             List<MealHistory> mealHistories,
             List<Recommendation> recommendationHistories,
             LocalTime now,
+            LocalDate today,
+            LocalDateTime cutoff,
             Map<Long, String> subCategoryByRestaurantId
     ) {
         MenuCategory category = candidate.hasMenu()
@@ -237,24 +357,25 @@ public class RecommendationPolicy {
 
         int total = distanceScore(candidate.distanceMeters())
                 + categoryScore(category, userProfile)
-                + mealHistoryScore(candidate, mealHistories, subCategoryByRestaurantId)
-                + recommendationHistoryScore(candidate, recommendationHistories, subCategoryByRestaurantId)
-                + timeSlotScore(candidate, now);
+                + mealHistoryScore(candidate, mealHistories, subCategoryByRestaurantId, today)
+                + recommendationHistoryScore(candidate, recommendationHistories, subCategoryByRestaurantId, today, cutoff)
+                + timeSlotScore(candidate, now)
+                + tooFarPenalty(candidate, recommendationHistories, cutoff);
         return BigDecimal.valueOf(Math.max(0, total));
     }
 
-    /** 거리 점수 (30점 만점) */
+    /** 거리 점수 (40점 만점, 500m 반경 기준) */
     int distanceScore(double distanceMeters) {
-        if (distanceMeters <= 500) return 30;
-        if (distanceMeters <= 700) return 20;
-        if (distanceMeters <= 1000) return 10;
+        if (distanceMeters <= 200) return 40;
+        if (distanceMeters <= 350) return 30;
+        if (distanceMeters <= 500) return 20;
         return 0;
     }
 
-    /** 선호 카테고리 점수 (30점 만점). Restriction 은 이미 필터에서 제거됨 */
+    /** 선호 카테고리 점수 (20점 만점). Restriction 은 이미 필터에서 제거됨 */
     int categoryScore(MenuCategory category, UserProfile userProfile) {
-        if (category == null) return 15;
-        return userProfile.getPreferences().isPreferredCategory(category) ? 30 : 15;
+        if (category == null) return 10;
+        return userProfile.getPreferences().isPreferredCategory(category) ? 20 : 10;
     }
 
     /**
@@ -263,8 +384,7 @@ public class RecommendationPolicy {
      * 두 조건이 겹치면 더 낮은 점수(더 큰 감점) 적용.
      */
     int mealHistoryScore(MenuCandidate candidate, List<MealHistory> mealHistories,
-                         Map<Long, String> subCategoryByRestaurantId) {
-        LocalDate today = LocalDate.now(ZoneId.of("Asia/Seoul"));
+                         Map<Long, String> subCategoryByRestaurantId, LocalDate today) {
         Long restaurantId = candidate.restaurant().getId();
         String subCategory = candidate.restaurant().getSubCategory();
 
@@ -310,8 +430,8 @@ public class RecommendationPolicy {
      * 같은 식당 > 같은 subCategory > 이력 없음 순으로 감점.
      */
     int recommendationHistoryScore(MenuCandidate candidate, List<Recommendation> histories,
-                                   Map<Long, String> subCategoryByRestaurantId) {
-        LocalDate today = LocalDate.now(ZoneId.of("Asia/Seoul"));
+                                   Map<Long, String> subCategoryByRestaurantId,
+                                   LocalDate today, LocalDateTime cutoff) {
         Long restaurantId = candidate.restaurant().getId();
         String subCategory = candidate.restaurant().getSubCategory();
 
@@ -347,6 +467,14 @@ public class RecommendationPolicy {
                     })
                     .findFirst()
                     .orElse(10);
+
+            // ATE_RECENTLY 거절 시 같은 subCategory 2시간 내 강한 감점 (0점)
+            boolean ateRecentlySameSubCategory = histories.stream()
+                    .filter(r -> r.getRejectReason() == RejectReason.ATE_RECENTLY)
+                    .filter(r -> r.getCreatedAt().isAfter(cutoff))
+                    .filter(r -> r.getRestaurantId() != null)
+                    .anyMatch(r -> subCategory.equals(subCategoryByRestaurantId.get(r.getRestaurantId())));
+            if (ateRecentlySameSubCategory) subCategoryScore = 0;
         }
 
         return Math.min(restaurantScore, subCategoryScore);
@@ -360,6 +488,20 @@ public class RecommendationPolicy {
         return 0;
     }
 
+    /**
+     * TOO_FAR 감점. 2시간 내 TOO_FAR 거절이 있으면,
+     * 거절한 식당 거리 이상인 후보를 감점(-10).
+     */
+    int tooFarPenalty(MenuCandidate candidate, List<Recommendation> histories, LocalDateTime cutoff) {
+        // 2시간 내 TOO_FAR 거절된 식당들의 거리를 확인할 수 없으므로 (Recommendation에 거리 미저장)
+        // TOO_FAR 거절이 있으면 먼 식당(700m+)을 감점하는 방식으로 대체
+        boolean hasTooFarReject = histories.stream()
+                .filter(r -> r.getRejectReason() == RejectReason.TOO_FAR)
+                .anyMatch(r -> r.getCreatedAt().isAfter(cutoff));
+        if (!hasTooFarReject) return 0;
+        return candidate.distanceMeters() >= 700 ? TOO_FAR_PENALTY : 0;
+    }
+
     private Optional<ScoredCandidate> selectBest(List<ScoredCandidate> scored) {
         if (scored.isEmpty()) return Optional.empty();
         if (scored.size() > 1 && random.nextDouble() < EXPLORATION_RATIO) {
@@ -371,8 +513,7 @@ public class RecommendationPolicy {
         return Optional.of(scored.get(0)); // 활용: 최고 점수 후보
     }
 
-    private Set<Long> resolveExcludedRestaurantIds(List<MealHistory> mealHistories) {
-        LocalDate today = LocalDate.now(ZoneId.of("Asia/Seoul"));
+    private Set<Long> resolveExcludedRestaurantIds(List<MealHistory> mealHistories, LocalDate today) {
         return mealHistories.stream()
                 .filter(h -> h.getRestaurantId() != null)
                 .filter(h -> {
@@ -386,8 +527,7 @@ public class RecommendationPolicy {
                 .collect(Collectors.toSet());
     }
 
-    private Set<Long> resolveExcludedMenuIds(List<MealHistory> mealHistories) {
-        LocalDate today = LocalDate.now(ZoneId.of("Asia/Seoul"));
+    private Set<Long> resolveExcludedMenuIds(List<MealHistory> mealHistories, LocalDate today) {
         return mealHistories.stream()
                 .filter(h -> h.getMenuId() != null)
                 .filter(h -> {

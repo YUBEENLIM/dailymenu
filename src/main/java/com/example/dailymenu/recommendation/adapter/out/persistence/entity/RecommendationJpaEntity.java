@@ -67,6 +67,9 @@ public class RecommendationJpaEntity {
     @Column(name = "reject_reason", length = 50)
     private RejectReason rejectReason;
 
+    @Column(name = "reject_detail", length = 500)
+    private String rejectDetail;
+
     @Column(name = "recommendation_score", precision = 5, scale = 2)
     private BigDecimal recommendationScore;
 
@@ -93,6 +96,7 @@ public class RecommendationJpaEntity {
             String idempotencyKey,
             RecommendationStatus status,
             RejectReason rejectReason,
+            String rejectDetail,
             BigDecimal recommendationScore,
             FallbackLevel fallbackLevel
     ) {
@@ -105,6 +109,7 @@ public class RecommendationJpaEntity {
         this.idempotencyKey = idempotencyKey;
         this.status = status;
         this.rejectReason = rejectReason;
+        this.rejectDetail = rejectDetail;
         this.recommendationScore = recommendationScore;
         this.fallbackLevel = fallbackLevel;
     }
@@ -113,8 +118,9 @@ public class RecommendationJpaEntity {
      * 사용자 반응(수락/거절) 처리 시 상태 변경.
      * Recommendation 도메인의 accept() / reject() 결과를 반영한다.
      */
-    public void updateStatus(RecommendationStatus status, RejectReason rejectReason) {
+    public void updateStatus(RecommendationStatus status, RejectReason rejectReason, String rejectDetail) {
         this.status = status;
         this.rejectReason = rejectReason;
+        this.rejectDetail = rejectDetail;
     }
 }

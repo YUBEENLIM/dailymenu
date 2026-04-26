@@ -15,6 +15,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.UUID;
+
 /**
  * 인증 UseCase — 일반 로그인 + 카카오 OAuth 로그인 + JWT 발급·갱신·무효화.
  * Access Token 1시간, Refresh Token 7일 (api-spec.md §2).
@@ -74,14 +76,16 @@ public class AuthUseCase {
         Long userId = userAuthPort.findByOAuth(oauthUser.provider(), oauthUser.oauthId())
                 .map(AuthUserInfo::id)
                 .orElseGet(() -> {
-                    String nickname = "사용자_" + oauthUser.oauthId().substring(0, Math.min(5, oauthUser.oauthId().length()));
+                    // oauthId를 닉네임에 노출하지 않는다 (maskOauthId 정책과 일관성).
+                    String nickname = "사용자_" + UUID.randomUUID().toString().substring(0, 4);
                     return userAuthPort.saveOAuthUser(oauthUser.provider(), oauthUser.oauthId(), nickname);
                 });
 
-        log.info("카카오 로그인 성공 userId={} oauthId={}", userId, oauthUser.oauthId());
+        log.info("카카오 로그인 성공 userId={} oauthId={}", userId, maskOauthId(oauthUser.oauthId()));
         return issueTokens(userId);
     }
 
+    @Transactional(readOnly = true)
     public RefreshResult refresh(String refreshToken) {
         Long userId;
         try {
@@ -90,10 +94,7 @@ public class AuthUseCase {
             throw new BusinessException(ErrorCode.UNAUTHORIZED);
         }
 
-        String stored = refreshTokenPort.find(userId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.UNAUTHORIZED));
-
-        if (!stored.equals(refreshToken)) {
+        if (!refreshTokenPort.matches(userId, refreshToken)) {
             throw new BusinessException(ErrorCode.UNAUTHORIZED);
         }
 
@@ -101,6 +102,15 @@ public class AuthUseCase {
         return new RefreshResult(newAccessToken, tokenPort.getAccessTokenExpirationSeconds());
     }
 
+    // 로그 유출 시 개인 식별 최소화: 앞 4자리 + *** (길이 4 이하는 전체 마스킹)
+    private static String maskOauthId(String oauthId) {
+        if (oauthId == null || oauthId.length() <= 4) {
+            return "***";
+        }
+        return oauthId.substring(0, 4) + "***";
+    }
+
+    @Transactional
     public void logout(Long userId) {
         refreshTokenPort.invalidate(userId);
         log.info("로그아웃 완료 userId={}", userId);
